@@ -68,6 +68,10 @@ with open(tk.filename, 'r+', encoding="utf-8") as input_file:
         # print(p.text)
         p.drop_tag()
 
+    # remove empty table rows
+    for row in tree.xpath('//tr[* and not(*[node()])]'):
+        row.getparent().remove(row)
+
     # remove unwanted tags
     cleaner = Cleaner(
         remove_tags=['a', 'head', 'div'],
