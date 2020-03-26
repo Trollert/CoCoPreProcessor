@@ -1,10 +1,10 @@
-import fileinput
 import re
 import sys
 import os
-from tkinter import Tk, filedialog
+from tkinter import Tk, filedialog, Listbox, Label
 from lxml import html, etree
 from lxml.html.clean import Cleaner
+
 
 def wrap(root, tag):
     # find <td> elements that do not have a <p> element
@@ -24,6 +24,7 @@ def wrap(root, tag):
         # Set the new <p> element as the cell's child
         cell.append(e)
 
+
 # File Dialog to choose htm-file
 tk = Tk()
 if len(sys.argv) < 2:
@@ -32,12 +33,19 @@ if len(sys.argv) < 2:
 else:
     tk.filename = sys.argv[1]
 
-with fileinput.FileInput(tk.filename, inplace=True) as file:
-    for line in file:
-        print(line.replace('CO2', 'CO<sub>2</sub>'), end='')
+# open the file as string, to replace tag-based substrings
+# much easier to do before parsing html
+with open(tk.filename, 'r', encoding='UTF-8') as fi, \
+        open('tmp.htm', 'w', encoding='UTF-8') as fo:
+    new_str = fi.read()
+    new = new_str.replace('CO2', 'CO<sub>2</sub>')  # replaces every occurrence of CO2
+    # new = new.replace('\xa0', ' ')                                          # replaces non breaking spaces
+    new = re.sub(r"(?sm)(?<=[a-z\,;\xa0])</p>\s*?<p>(?=[a-z])", ' ', new)  # removes wrong line breaks (BETA)
+    fo.write(new)
+    fo.close()
 
-with open(tk.filename, 'r+', encoding="utf-8") as input_file:
-
+# open temp file for parsing
+with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     tree = html.parse(input_file)
 
     # compile footnote patterns as regex object
@@ -45,7 +53,22 @@ with open(tk.filename, 'r+', encoding="utf-8") as input_file:
         re.compile('\s*\d{1,2}\s*'),
         re.compile('\s*\*{1,9}\s*'),
         re.compile('\s*\*{1,9}\)\s*'),
-        re.compile('\s*[a-z]\s*')
+        re.compile('\s*[a-z]\s*'),
+        re.compile('\s*\d{1,2}\)\s*'),
+        re.compile('\s*\(\d{1,2}\)\s*')
+    ]
+
+    # compile number format as regex objects
+    number_formats = [
+        re.compile('(^[-\s+]{0,2}\d{1,3}$)', re.MULTILINE),  # 123 has to be first, to prevent double matches
+        re.compile('(^[-\s+]{0,2}\d{1,3}(\.\d{3})*?(,\d{1,2})?$)', re.MULTILINE),  # 123.123,12 ; 123,1 ; 123
+        re.compile('(^[-\s+]{0,2}\d{1,3}(,\d{3})*?(\.\d{1,2})?$)', re.MULTILINE),  # 123,123.12 ; 123.1 ; 123
+        re.compile('(^[-\s+]{0,2}\d{1,3}(\s\d{3})*?(,\d{1,2})?$)', re.MULTILINE),  # 123 123,12 ; 123,1 ; 123
+        re.compile('(^[-\s+]{0,2}\d{1,3}(\s\d{3})*?(\.\d{1,2})?$)', re.MULTILINE),  # 123 123.12 ; 123.1 ; 123
+        # other allowed cell content
+        re.compile('^[-.,\s]+$', re.MULTILINE),  # empty cells and placeholder -,.
+        re.compile('^(19|20)\d{2}$', re.MULTILINE),  # year 1900 - 2099
+        re.compile('^.*[A-Za-z]{2,}.*$', re.DOTALL)
     ]
 
     # replace </p><p> in tables with <br>
@@ -55,12 +78,13 @@ with open(tk.filename, 'r+', encoding="utf-8") as input_file:
         x = len(td)
         for p in range(x):
             i += 1
-            if i > x-1:
+            if i > x - 1:
                 break
-            td.insert(p+i, etree.Element('br'))
+            td.insert(p + i, etree.Element('br'))
 
     # remove sup/sub tags from headlines
-    for e in tree.xpath('/html/body/*[self::h1 or self::h2 or self::h3 or self::h4 or self::h5 or self::h6]/*[self::sup or self::sub]'):
+    for e in tree.xpath(
+            '/html/body/*[self::h1 or self::h2 or self::h3 or self::h4 or self::h5 or self::h6]/*[self::sup or self::sub]'):
         e.drop_tag()
 
     # remove p tags in tables
@@ -115,10 +139,68 @@ with open(tk.filename, 'r+', encoding="utf-8") as input_file:
             # clear lists
             f_cells.clear()
             matches.clear()
+
+    # check numbers in table cells
+    # get all tables that are not footnote tables
+    std_tables = tree.xpath('//table[not(@class="footnote")]')
+    undef_matches = []
+    for table in std_tables:
+        subtable = []
+        format_count = [0] * len(number_formats)
+        # select all non-empty td-elements, beginning at second column
+        # subtable.append(table.xpath('.//tbody/tr/td[position() > 1 and string-length(text()) > 0]'))
+        subtable.append(table.xpath('.//tbody/tr/td[position() > 1]'))  # ignores thead content
+        for row in subtable:
+            for cell in row:
+                cell_format = [0] * len(number_formats)
+                for i in range(len(number_formats)):
+                    # breaks after first match
+                    if cell.text is not None and number_formats[i].fullmatch(str(cell.text)):
+                        cell_format[i] += 1
+                        break
+                if sum(cell_format):
+                    format_count = [a + b for a, b in zip(format_count, cell_format)]
+                else:
+                    undef_matches.append(cell.text)
+
+        # print('Table nr.: ' + str(std_tables.index(table)))
+        # print('Number format of table: ' + str(format_count.index(max(format_count[1:4]))))
+        # print('Nr. of Matches:')
+        # print('123:\t\t' + str(format_count[0]))
+        # print('123.123,12:\t' + str(format_count[1]))
+        # print('123,123.12:\t' + str(format_count[2]))
+        # print('123 123,12:\t' + str(format_count[3]))
+        # print('123 123.12:\t' + str(format_count[4]))
+        # print('.,- :\t\t' + str(format_count[5]))
+        # print('Year/Date:\t' + str(format_count[6]))
+        # print('Text:\t\t' + str(format_count[7]))
+        # # print('No match:\t' + str(format_count[8]))
+        # print('--------------------------\n')
+
+        # print(cell.xpath('count(./preceding-sibling::td) + 1'), end=' ')
+
     # wrap all table contents in p-tags
     wrap(tree, "p")
     # write to new file in source folder
-    tree.write(os.path.splitext(input_file.name)[0] + '_modified.htm', encoding='UTF-8', method='html')
+    tree.write(os.path.splitext(tk.filename)[0] + '_modified.htm', encoding='UTF-8', method='html')
+
+os.remove('tmp.htm')  # remove original
 
 
+def listbox_copy(lb):
+    tk.clipboard_clear()
+    w = lb.widget
+    selected = int(w.curselection()[0])
+    tk.clipboard_append(w.get(selected))
 
+
+if len(undef_matches) is not 0:
+    tk.title('False formatted numbers')
+    label = Label(tk, text='Double Click to copy')
+    label.pack()
+    undef_MSB = Listbox(tk, width=40)
+    for e in range(len(undef_matches)):
+        undef_MSB.insert(e, undef_matches[e])
+    undef_MSB.pack()
+    undef_MSB.bind('<Double-Button-1>', listbox_copy)
+    tk.mainloop()
