@@ -67,7 +67,7 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
         re.compile('(^[-\s+]{0,2}\d{1,3}(\s\d{3})*?(\.\d{1,2})?$)', re.MULTILINE),  # 123 123.12 ; 123.1 ; 123
         # other allowed cell content
         re.compile('^[-.,\s]+$', re.MULTILINE),  # empty cells and placeholder -,.
-        re.compile('^(19|20)\d{2}$', re.MULTILINE),  # year 1900 - 2099
+        re.compile('^\s*(19|20)\d{2}\s*$', re.MULTILINE),  # year 1900 - 2099
         re.compile('^.*[A-Za-z]{2,}.*$', re.DOTALL)
     ]
 
@@ -90,6 +90,15 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     # remove p tags in tables
     for p in tree.xpath('//table//p'):
         # print(p.text)
+        p.drop_tag()
+
+    # remove li tags in td elements
+    for li in tree.xpath('//td/li'):
+        li.drop_tag()
+
+    # remove p tags in li elements (ABBYY 15)
+    for p in tree.xpath('/body/li/p'):
+        p.text = re.sub('^[►•-]', '', p.text)
         p.drop_tag()
 
     # remove empty table rows
@@ -149,7 +158,7 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
         format_count = [0] * len(number_formats)
         # select all non-empty td-elements, beginning at second column
         # subtable.append(table.xpath('.//tbody/tr/td[position() > 1 and string-length(text()) > 0]'))
-        subtable.append(table.xpath('.//tbody/tr/td[position() > 1]'))  # ignores thead content
+        subtable.append(table.xpath('.//tr[position() > 1]/td[position() > 1]'))  # ignores thead content
         for row in subtable:
             for cell in row:
                 cell_format = [0] * len(number_formats)
