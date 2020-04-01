@@ -59,21 +59,21 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
 
     # compile number format as regex objects
     number_formats = [
-        re.compile('(^[-\s+(]{0,3}\d{1,3}\)?[ €%]{0,2}$)', re.MULTILINE),  # 123 has to be first, to prevent double matches
+        re.compile('(^[-\s+(]{0,3}\d{1,3}\)?[ €%]{0,2}$)', re.MULTILINE),                        # 123 has to be first, to prevent double matches
         re.compile('(^[-\s+(]{0,3}\d{1,3}(\.\d{3})*?(,\d{1,5})?\)?[ €%]{0,2}$)', re.MULTILINE),  # 123.123,12000 ; 123,1 ; 123
         re.compile('(^[-\s+(]{0,3}\d{1,3}(,\d{3})*?(\.\d{1,5})?\)?[ €%]{0,2}$)', re.MULTILINE),  # 123,123.12 ; 123.1 ; 123
         re.compile('(^[-\s+(]{0,3}\d{1,3}(\s\d{3})*?(,\d{1,5})?\)?[ €%]{0,2}$)', re.MULTILINE),  # 123 123,12 ; 123,1 ; 123
-        re.compile('(^[-\s+(]{0,3}\d{1,3}(\s\d{3})*?(\.\d{1,5})?\)?[ €%]{0,2}$)', re.MULTILINE),  # 123 123.12 ; 123.1 ; 123
+        re.compile('(^[-\s+(]{0,3}\d{1,3}(\s\d{3})*?(\.\d{1,5})?\)?[ €%]{0,2}$)', re.MULTILINE), # 123 123.12 ; 123.1 ; 123
         # other allowed cell content
-        re.compile('^[-.,\s]+$', re.MULTILINE),  # empty cells and placeholder -,.
-        re.compile('^\s*?(19|20)\d{2}\s*?$', re.MULTILINE),  # year 1900 - 2099
-        re.compile('^\s*?[0123]?\d\.[0123]?\d\.(19|20)?\d{2}\s*?$', re.MULTILINE),  # dates 12.02.1991; 12.31.91: 12.31.2091
-        re.compile('^.*[A-Za-z]{2,}.*$', re.DOTALL)        # text
+        re.compile('^[-.,\s]+$', re.MULTILINE),                                                  # empty cells and placeholder -,.
+        re.compile('^\s*?(19|20)\d{2}\s*?$', re.MULTILINE),                                      # year 1900 - 2099
+        re.compile('^\s*?[0123]?\d\.[0123]?\d\.(19|20)?\d{2}\s*?$', re.MULTILINE),               # dates 12.02.1991; 12.31.91: 12.31.2091
+        re.compile('^.*[A-Za-z]{2,}.*$', re.DOTALL)                                              # text
     ]
 
     header_list = [
-        number_formats[7],                                                      # dates
-        re.compile('^\s*?(19|20)\d{2}\s*?$', re.MULTILINE),                     # year
+        number_formats[7],                                                                       # dates
+        re.compile('^\s*?(19|20)\d{2}\s*?$', re.MULTILINE),                                      # year
         re.compile('^\s*?(T|Mio|Mrd|in)?\.?\s?[€$]\s*?$', re.MULTILINE)            # T€, Mio. €, Mrd. €, in €
     ]
 
@@ -177,32 +177,6 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
                 else:
                     undef_matches.append(cell.text)
 
-        # print(cell.xpath('count(./preceding-sibling::td) + 1'), end=' ')
-
-    # set table headers row for row OLD VERSION
-    # for table in std_tables:
-    #     header_flag = True
-    #     for row in table:
-    #         print(row)
-    #         for cell in row.xpath('./td[position() > 1]'):
-    #             print(cell.text)
-    #             if cell.text is not None:
-    #                 if any(list(reg.fullmatch(cell.text) for reg in number_formats[0:4])) and header_flag:
-    #                     header_flag = False
-    #                     print('found a number')
-    #         if header_flag and not table.xpath('./thead'):
-    #             table.insert(0, etree.Element('tbody'))
-    #             table.insert(0, etree.Element('thead'))
-    #
-    #         if header_flag:
-    #             print('move to header')
-    #             etree.dump(table.find('thead'))
-    #             table.find('thead').append(row)
-    #         else:
-    #             print('move to body')
-    #             # print(table.xpath('./tbody'))
-    #             table.find('tbody').append(row)
-
     # set table headers row for row
     for table in std_tables:
         header_flag = False
@@ -280,7 +254,6 @@ def listbox_copy(lb):
     w = lb.widget
     selected = int(w.curselection()[0])
     tk.clipboard_append(w.get(selected))
-
 
 if len(undef_matches) is not 0:
     tk.title('False formatted numbers')
