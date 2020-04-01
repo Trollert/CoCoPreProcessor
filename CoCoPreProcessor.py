@@ -24,7 +24,6 @@ def wrap(root, tag):
         # Set the new <p> element as the cell's child
         cell.append(e)
 
-
 # File Dialog to choose htm-file
 tk = Tk()
 if len(sys.argv) < 2:
@@ -60,15 +59,27 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
 
     # compile number format as regex objects
     number_formats = [
-        re.compile('(^[-\s+]{0,2}\d{1,3}$)', re.MULTILINE),  # 123 has to be first, to prevent double matches
-        re.compile('(^[-\s+]{0,2}\d{1,3}(\.\d{3})*?(,\d{1,2})?$)', re.MULTILINE),  # 123.123,12 ; 123,1 ; 123
-        re.compile('(^[-\s+]{0,2}\d{1,3}(,\d{3})*?(\.\d{1,2})?$)', re.MULTILINE),  # 123,123.12 ; 123.1 ; 123
-        re.compile('(^[-\s+]{0,2}\d{1,3}(\s\d{3})*?(,\d{1,2})?$)', re.MULTILINE),  # 123 123,12 ; 123,1 ; 123
-        re.compile('(^[-\s+]{0,2}\d{1,3}(\s\d{3})*?(\.\d{1,2})?$)', re.MULTILINE),  # 123 123.12 ; 123.1 ; 123
+        re.compile('(^[-\s+(]{0,3}\d{1,3}\)?[ €%]{0,2}$)', re.MULTILINE),  # 123 has to be first, to prevent double matches
+        re.compile('(^[-\s+(]{0,3}\d{1,3}(\.\d{3})*?(,\d{1,5})?\)?[ €%]{0,2}$)', re.MULTILINE),  # 123.123,12000 ; 123,1 ; 123
+        re.compile('(^[-\s+(]{0,3}\d{1,3}(,\d{3})*?(\.\d{1,5})?\)?[ €%]{0,2}$)', re.MULTILINE),  # 123,123.12 ; 123.1 ; 123
+        re.compile('(^[-\s+(]{0,3}\d{1,3}(\s\d{3})*?(,\d{1,5})?\)?[ €%]{0,2}$)', re.MULTILINE),  # 123 123,12 ; 123,1 ; 123
+        re.compile('(^[-\s+(]{0,3}\d{1,3}(\s\d{3})*?(\.\d{1,5})?\)?[ €%]{0,2}$)', re.MULTILINE),  # 123 123.12 ; 123.1 ; 123
         # other allowed cell content
         re.compile('^[-.,\s]+$', re.MULTILINE),  # empty cells and placeholder -,.
-        re.compile('^\s*(19|20)\d{2}\s*$', re.MULTILINE),  # year 1900 - 2099
-        re.compile('^.*[A-Za-z]{2,}.*$', re.DOTALL)
+        re.compile('^\s*?(19|20)\d{2}\s*?$', re.MULTILINE),  # year 1900 - 2099
+        re.compile('^\s*?[0123]?\d\.[0123]?\d\.(19|20)?\d{2}\s*?$', re.MULTILINE),  # dates 12.02.1991; 12.31.91: 12.31.2091
+        re.compile('^.*[A-Za-z]{2,}.*$', re.DOTALL)        # text
+    ]
+
+    header_list = [
+        number_formats[7],                                                      # dates
+        re.compile('^\s*?(19|20)\d{2}\s*?$', re.MULTILINE),                     # year
+        re.compile('^\s*?(T|Mio|Mrd|in)?\.?\s?[€$]\s*?$', re.MULTILINE)            # T€, Mio. €, Mrd. €, in €
+    ]
+
+    unordered_list = [
+        re.compile('^[►•] ', re.MULTILINE),
+        re.compile('^- ', re.MULTILINE)
     ]
 
     # replace </p><p> in tables with <br>
@@ -95,11 +106,6 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     # remove li tags in td elements
     for li in tree.xpath('//td/li'):
         li.drop_tag()
-
-    # remove p tags in li elements (ABBYY 15)
-    for p in tree.xpath('/body/li/p'):
-        p.text = re.sub('^[►•-]', '', p.text)
-        p.drop_tag()
 
     # remove empty table rows
     for row in tree.xpath('//tr[* and not(*[node()])]'):
@@ -157,8 +163,7 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
         subtable = []
         format_count = [0] * len(number_formats)
         # select all non-empty td-elements, beginning at second column
-        # subtable.append(table.xpath('.//tbody/tr/td[position() > 1 and string-length(text()) > 0]'))
-        subtable.append(table.xpath('.//tr[position() > 1]/td[position() > 1]'))  # ignores thead content
+        subtable.append(table.xpath('.//tr/td[position() > 1]'))
         for row in subtable:
             for cell in row:
                 cell_format = [0] * len(number_formats)
@@ -172,21 +177,95 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
                 else:
                     undef_matches.append(cell.text)
 
-        # print('Table nr.: ' + str(std_tables.index(table)))
-        # print('Number format of table: ' + str(format_count.index(max(format_count[1:4]))))
-        # print('Nr. of Matches:')
-        # print('123:\t\t' + str(format_count[0]))
-        # print('123.123,12:\t' + str(format_count[1]))
-        # print('123,123.12:\t' + str(format_count[2]))
-        # print('123 123,12:\t' + str(format_count[3]))
-        # print('123 123.12:\t' + str(format_count[4]))
-        # print('.,- :\t\t' + str(format_count[5]))
-        # print('Year/Date:\t' + str(format_count[6]))
-        # print('Text:\t\t' + str(format_count[7]))
-        # # print('No match:\t' + str(format_count[8]))
-        # print('--------------------------\n')
-
         # print(cell.xpath('count(./preceding-sibling::td) + 1'), end=' ')
+
+    # set table headers row for row OLD VERSION
+    # for table in std_tables:
+    #     header_flag = True
+    #     for row in table:
+    #         print(row)
+    #         for cell in row.xpath('./td[position() > 1]'):
+    #             print(cell.text)
+    #             if cell.text is not None:
+    #                 if any(list(reg.fullmatch(cell.text) for reg in number_formats[0:4])) and header_flag:
+    #                     header_flag = False
+    #                     print('found a number')
+    #         if header_flag and not table.xpath('./thead'):
+    #             table.insert(0, etree.Element('tbody'))
+    #             table.insert(0, etree.Element('thead'))
+    #
+    #         if header_flag:
+    #             print('move to header')
+    #             etree.dump(table.find('thead'))
+    #             table.find('thead').append(row)
+    #         else:
+    #             print('move to body')
+    #             # print(table.xpath('./tbody'))
+    #             table.find('tbody').append(row)
+
+    # set table headers row for row
+    for table in std_tables:
+        header_flag = False
+        header_rows = -1    # -1 for later comparison with 0 index
+        for row in table:
+            for cell in row:
+                if cell.text is not None:
+                    if any(list(reg.fullmatch(cell.text) for reg in header_list)):
+                        header_flag = True
+                        header_rows = table.index(row)
+                    if any(list(reg.fullmatch(cell.text) for reg in number_formats[0:4])):
+                        # print('found number')
+                        header_rows = old
+                        break
+            old = header_rows
+
+        # get the first occuring row in which the first cell is not empty
+        first_textrow = table.xpath('./tr[td[position() = 1 and text()]][1]')
+        if len(first_textrow):
+            # index of the first cell with text - 1 to get only empty cells
+            text_cell_row = table.index(first_textrow[0]) - 1
+            if header_rows <= text_cell_row:
+                header_rows = text_cell_row
+                header_flag = True
+
+        if header_flag:
+            # create lists with header and body elements
+            # this is needed at the beginning, because the position changes when adding header and body tags
+            headers = table.xpath('.//tr[position() <= %s]' % str(header_rows + 1))
+            body = table.xpath('.//tr[position() > %s]' % str(header_rows + 1))
+            # create thead-/tbody-tags
+            table.insert(0, etree.Element('tbody'))
+            table.insert(0, etree.Element('thead'))
+
+            # move rows to inside header or body
+            for thead in headers:
+                table.find('thead').append(thead)
+            for tbody in body:
+                table.find('tbody').append(tbody)
+
+    # find and set unordered lists
+    dash_list = []
+    dash_count = 0
+    for p in tree.xpath('//body/p'):
+        # check if beginning of paragraph matches safe list denominators (no -)
+        if unordered_list[0].match(p.text):
+            p.text = unordered_list[0].sub('', p.text)
+            p.tag = 'li'
+        # if not check if "- " matches
+        elif unordered_list[1].match(p.text):
+            dash_count += 1
+            # append to list for later tag change
+            dash_list.append(p)
+        else:
+            # if only one dash is present, remove last element from dash list (single list item could be confused with
+            # wrong break)
+            if dash_count == 1:
+                dash_list.pop()
+            dash_count = 0
+    # iterate through dash list and change to unordered list
+    for p in dash_list:
+        p.text = unordered_list[1].sub('', p.text)
+        p.tag = 'li'
 
     # wrap all table contents in p-tags
     wrap(tree, "p")
@@ -195,7 +274,7 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
 
 os.remove('tmp.htm')  # remove original
 
-
+# UI for number checks
 def listbox_copy(lb):
     tk.clipboard_clear()
     w = lb.widget
