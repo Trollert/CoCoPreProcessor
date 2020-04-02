@@ -5,7 +5,6 @@ from tkinter import Tk, filedialog, Listbox, Label
 from lxml import html, etree
 from lxml.html.clean import Cleaner
 
-
 def wrap(root, tag):
     # find <td> elements that do not have a <p> element
     cells = etree.XPath("//td[not(p)]")(root)
@@ -68,13 +67,14 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
         re.compile('^[-.,\s]+$', re.MULTILINE),                                                  # empty cells and placeholder -,.
         re.compile('^\s*?(19|20)\d{2}\s*?$', re.MULTILINE),                                      # year 1900 - 2099
         re.compile('^\s*?[0123]?\d\.[0123]?\d\.(19|20)?\d{2}\s*?$', re.MULTILINE),               # dates 12.02.1991; 12.31.91: 12.31.2091
-        re.compile('^.*[A-Za-z]{2,}.*$', re.DOTALL)                                              # text
+        re.compile('^.*[A-Za-z]{2,}.*$', re.DOTALL),                                              # text
+        re.compile('^\s*?(T|Mio|Mrd|in)?\.?\s?[€$]\s*?$', re.MULTILINE)  # T€, Mio. €, Mrd. €, in €
     ]
 
     header_list = [
-        number_formats[7],                                                                       # dates
-        re.compile('^\s*?(19|20)\d{2}\s*?$', re.MULTILINE),                                      # year
-        re.compile('^\s*?(T|Mio|Mrd|in)?\.?\s?[€$]\s*?$', re.MULTILINE)            # T€, Mio. €, Mrd. €, in €
+        number_formats[7],                                      # dates
+        number_formats[6],                                      # year
+        number_formats[9]                                       # T€, Mio. €, Mrd. €, in €
     ]
 
     unordered_list = [
@@ -222,20 +222,21 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     dash_count = 0
     for p in tree.xpath('//body/p'):
         # check if beginning of paragraph matches safe list denominators (no -)
-        if unordered_list[0].match(p.text):
-            p.text = unordered_list[0].sub('', p.text)
-            p.tag = 'li'
-        # if not check if "- " matches
-        elif unordered_list[1].match(p.text):
-            dash_count += 1
-            # append to list for later tag change
-            dash_list.append(p)
-        else:
-            # if only one dash is present, remove last element from dash list (single list item could be confused with
-            # wrong break)
-            if dash_count == 1:
-                dash_list.pop()
-            dash_count = 0
+        if p.text:
+            if unordered_list[0].match(p.text):
+                p.text = unordered_list[0].sub('', p.text)
+                p.tag = 'li'
+            # if not check if "- " matches
+            elif unordered_list[1].match(p.text):
+                dash_count += 1
+                # append to list for later tag change
+                dash_list.append(p)
+            else:
+                # if only one dash is present, remove last element from dash list (single list item could be confused with
+                # wrong break)
+                if dash_count == 1:
+                    dash_list.pop()
+                dash_count = 0
     # iterate through dash list and change to unordered list
     for p in dash_list:
         p.text = unordered_list[1].sub('', p.text)
