@@ -1,7 +1,7 @@
 import re
 import sys
 import os
-from tkinter import Tk, filedialog, Listbox, Label
+from tkinter import Tk, filedialog, Listbox, Label, Scrollbar, Frame
 from lxml import html, etree
 from lxml.html.clean import Cleaner
 
@@ -37,8 +37,9 @@ with open(tk.filename, 'r', encoding='UTF-8') as fi, \
         open('tmp.htm', 'w', encoding='UTF-8') as fo:
     new_str = fi.read()
     new = new_str.replace('CO2', 'CO<sub>2</sub>')  # replaces every occurrence of CO2
+    new = new.replace('\u2013', '-')  # replaces en dash with normal dash
     # new = new.replace('\xa0', ' ')                                          # replaces non breaking spaces
-    new = re.sub(r"(?sm)(?<=[a-z\,;\xa0])</p>\s*?<p>(?=[a-z])", ' ', new)  # removes wrong line breaks (BETA)
+    new = re.sub(r"(?sm)(?<=[a-zöüä\,;\xa0])\s*?</p>\s*?<p>(?=[a-zöäü])", ' ', new)  # removes wrong line breaks (BETA)
     fo.write(new)
     fo.close()
 
@@ -58,17 +59,17 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
 
     # compile number format as regex objects
     number_formats = [
-        re.compile('(^[-\s+(]{0,3}\d{1,3}\)?[ €%]{0,2}$)', re.MULTILINE),                        # 123 has to be first, to prevent double matches
-        re.compile('(^[-\s+(]{0,3}\d{1,3}(\.\d{3})*?(,\d{1,5})?\)?[ €%]{0,2}$)', re.MULTILINE),  # 123.123,12000 ; 123,1 ; 123
-        re.compile('(^[-\s+(]{0,3}\d{1,3}(,\d{3})*?(\.\d{1,5})?\)?[ €%]{0,2}$)', re.MULTILINE),  # 123,123.12 ; 123.1 ; 123
-        re.compile('(^[-\s+(]{0,3}\d{1,3}(\s\d{3})*?(,\d{1,5})?\)?[ €%]{0,2}$)', re.MULTILINE),  # 123 123,12 ; 123,1 ; 123
-        re.compile('(^[-\s+(]{0,3}\d{1,3}(\s\d{3})*?(\.\d{1,5})?\)?[ €%]{0,2}$)', re.MULTILINE), # 123 123.12 ; 123.1 ; 123
+        re.compile('(^\s*?[-+$]{0,3}\s*?\(?\d{1,3}\)?[ €$%]{0,2}$)', re.MULTILINE),                        # 123 has to be first, to prevent double matches
+        re.compile('(^\s*?[-+€]{0,3}\s*?\(?\d{1,3}(\.\d{3})*?(,\d{1,5})?\)?\s*?[€%]?\s*?$)', re.MULTILINE),  # 123.123,12000 ; 123,1 ; 123
+        re.compile('(^\s*?[-+$]{0,3}\s*?\(?\d{1,3}(,\d{3})*?(\.\d{1,5})?\)?\s*?[$%]?\s*?$)', re.MULTILINE),  # 123,123.12 ; 123.1 ; 123
+        re.compile('(^\s*?[-+€]{0,3}\s*?\(?\d{1,3}(\s\d{3})*?(,\d{1,5})?\)?\s*?[€%]?\s*?$)', re.MULTILINE),  # 123 123,12 ; 123,1 ; 123
+        re.compile('(^\s*?[-+$]{0,3}\s*?\(?\d{1,3}(\s\d{3})*?(\.\d{1,5})?\)?\s*?[€%]?\s*?$)', re.MULTILINE), # 123 123.12 ; 123.1 ; 123
         # other allowed cell content
         re.compile('^[-.,\s]+$', re.MULTILINE),                                                  # empty cells and placeholder -,.
         re.compile('^\s*?(19|20)\d{2}\s*?$', re.MULTILINE),                                      # year 1900 - 2099
-        re.compile('^\s*?[0123]?\d\.[0123]?\d\.(19|20)?\d{2}\s*?$', re.MULTILINE),               # dates 12.02.1991; 12.31.91: 12.31.2091
+        re.compile('^\s*?[0123]?\d[./-][0123]?\d[./-](19|20)?\d{2}\s*?$', re.MULTILINE),               # dates 12.02.1991; 12.31.91: 12.31.2091
         re.compile('^.*[A-Za-z]{2,}.*$', re.DOTALL),                                              # text
-        re.compile('^\s*?(T|Mio|Mrd|in)?\.?\s?[€$]\s*?$', re.MULTILINE)  # T€, Mio. €, Mrd. €, in €
+        re.compile('^\s*?(in)?\s*?(T|Tsd|Mio|Mrd)?\.?\s?[€$]\s*?$', re.MULTILINE)  # T€, Mio. €, Mrd. €, in €
     ]
 
     header_list = [
@@ -78,8 +79,14 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     ]
 
     unordered_list = [
-        re.compile('^[►•] ', re.MULTILINE),
-        re.compile('^- ', re.MULTILINE)
+        re.compile('^\s*?[►•■-]\s', re.MULTILINE)
+    ]
+
+    falseWord_list = [
+        re.compile(r'(\b[A-ZÖÄÜa-zäöüß][a-zäöüß]*?[a-zäöüß][A-ZÄÖÜ][a-zäöüß]*?\b)', re.MULTILINE),          # CashFlow, cashFlow
+        re.compile(r'(\b[A-ZÖÄÜa-zäöüß][a-zäöüß]*?\b-\b[a-zäöüß]{1,}?\b)', re.MULTILINE),                 # ex-terne, Ex-terne
+        re.compile(r'\b[A-ZÖÄÜa-zäöüß]{1,}?soder\b', re.MULTILINE),                                   #  Unternehmungsoder
+        re.compile(r'\b[A-ZÖÄÜa-zäöüß]{1,}?sund\b', re.MULTILINE)                                       # Unternehmungsund
     ]
 
     # replace </p><p> in tables with <br>
@@ -93,9 +100,12 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
                 break
             td.insert(p + i, etree.Element('br'))
 
+    # change all header hierarchies higher than 3 to 3
+    for e in tree.xpath('//*[self::h4 or self::h5 or self::h6]'):
+        e.tag = 'h3'
+
     # remove sup/sub tags from headlines
-    for e in tree.xpath(
-            '/html/body/*[self::h1 or self::h2 or self::h3 or self::h4 or self::h5 or self::h6]/*[self::sup or self::sub]'):
+    for e in tree.xpath('//*[self::h1 or self::h2 or self::h3]/*[self::sup or self::sub]'):
         e.drop_tag()
 
     # remove p tags in tables
@@ -177,9 +187,27 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
                 else:
                     undef_matches.append(cell.text)
 
+    # check false word separations
+    # get all elements that contain text (p/h1/h2/h3)
+    textElements = tree.xpath('.//*[normalize-space(text())]')
+    # print(textElements)
+    falseWord_matches = []
+    for e in textElements:
+        # regex match on every text element to check whether it matches a wrongfully separated word
+        # print(e.text)
+        for regex_match in falseWord_list:
+            matchList = regex_match.findall(e.text)
+            # print(matchList)
+            if len(matchList):
+                falseWord_matches.extend(matchList)
+    # remove duplicates from match list
+    falseWord_matches = list(dict.fromkeys(falseWord_matches))
+    print(falseWord_matches)
+
     # set table headers row for row
     for table in std_tables:
         header_flag = False
+        break_out = False
         header_rows = -1    # -1 for later comparison with 0 index
         for row in table:
             for cell in row:
@@ -190,7 +218,10 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
                     if any(list(reg.fullmatch(cell.text) for reg in number_formats[0:4])):
                         # print('found number')
                         header_rows = old
+                        break_out = True
                         break
+            if break_out:
+                break
             old = header_rows
 
         # get the first occuring row in which the first cell is not empty
@@ -223,11 +254,8 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     for p in tree.xpath('//body/p'):
         # check if beginning of paragraph matches safe list denominators (no -)
         if p.text:
-            if unordered_list[0].match(p.text):
-                p.text = unordered_list[0].sub('', p.text)
-                p.tag = 'li'
             # if not check if "- " matches
-            elif unordered_list[1].match(p.text):
+            if unordered_list[0].match(p.text):
                 dash_count += 1
                 # append to list for later tag change
                 dash_list.append(p)
@@ -239,7 +267,7 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
                 dash_count = 0
     # iterate through dash list and change to unordered list
     for p in dash_list:
-        p.text = unordered_list[1].sub('', p.text)
+        p.text = unordered_list[0].sub('', p.text)
         p.tag = 'li'
 
     # wrap all table contents in p-tags
@@ -257,12 +285,39 @@ def listbox_copy(lb):
     tk.clipboard_append(w.get(selected))
 
 if len(undef_matches) is not 0:
-    tk.title('False formatted numbers')
+    tk.title('False formatted numbers and words')
     label = Label(tk, text='Double Click to copy')
-    label.pack()
-    undef_MSB = Listbox(tk, width=40)
+    label.pack(side='top')
+    # FRAME 1
+    undef_frame = Frame(tk, width=25, height=50)
+    undef_frame.pack(fill='y', side='left')
+    # LISTBOX 1
+    undef_MSB = Listbox(undef_frame, width=20, height=50)
+    undef_MSB.pack(side='left', expand=True)
+    undef_MSB.bind('<Double-Button-1>', listbox_copy)
+    # SCROLLBAR 1
+    undef_Scrollbar = Scrollbar(undef_frame, orient="vertical")
+    undef_Scrollbar.config(command=undef_MSB.yview)
+    undef_Scrollbar.pack(side="left", fill="y")
+    # CONFIG 1
+    undef_MSB.config(yscrollcommand=undef_Scrollbar.set)
     for e in range(len(undef_matches)):
         undef_MSB.insert(e, undef_matches[e])
-    undef_MSB.pack()
-    undef_MSB.bind('<Double-Button-1>', listbox_copy)
+
+    # FRAME 2
+    falseWord_frame = Frame(tk, width=50, height=50)
+    falseWord_frame.pack(fill='y', side='left')
+    # LISTBOX 2
+    falseWord_MSB = Listbox(falseWord_frame, width=45, height=50)
+    falseWord_MSB.pack(side='left', expand=True)
+    falseWord_MSB.bind('<Double-Button-1>', listbox_copy)
+    # SCROLLBAR 2
+    falseWord_Scrollbar = Scrollbar(falseWord_frame, orient="vertical")
+    falseWord_Scrollbar.config(command=falseWord_MSB.yview)
+    falseWord_Scrollbar.pack(side="left", fill="y")
+    # CONFIG 2
+    falseWord_MSB.config(yscrollcommand=falseWord_Scrollbar.set)
+    for e in range(len(falseWord_matches)):
+        falseWord_MSB.insert(e, falseWord_matches[e])
+
     tk.mainloop()
