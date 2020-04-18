@@ -1,7 +1,7 @@
 import re
 import sys
 import os
-from tkinter import Tk, filedialog, Listbox, Label, Scrollbar, Frame
+from tkinter import Tk, filedialog, Listbox, Label, Scrollbar, Frame, Entry,Button
 from lxml import html, etree
 from lxml.html.clean import Cleaner
 
@@ -23,6 +23,61 @@ def wrap(root, tag):
         # Set the new <p> element as the cell's child
         cell.append(e)
 
+# UI for number checks
+def listbox_copy(lb):
+    tk.clipboard_clear()
+    w = lb.widget
+    selected = int(w.curselection()[0])
+    tk.clipboard_append(w.get(selected))
+
+def set_list(event):
+    """
+    insert an edited line from the entry widget
+    back into the listbox
+    """
+    vw = falseWord_MSB.yview()
+    index = falseWord_MSB.curselection()[0]
+
+    # delete old listbox line
+    falseWord_MSB.delete(index)
+
+    # insert edited item back into listbox1 at index
+    falseWord_MSB.insert(index, enter1.get())
+    falseWord_MSB.yview_moveto(vw[0])
+
+def get_list(event):
+    """
+    function to read the listbox selection
+    and put the result in an entry widget
+    """
+    vw = falseWord_MSB.yview()
+    # get selected line index
+    index = falseWord_MSB.curselection()[0]
+    # get the line's text
+    seltext = falseWord_MSB.get(index)
+    # delete previous text in enter1
+    enter1.delete(0, 100)
+    # now display the selected text
+    enter1.insert(0, seltext)
+    falseWord_MSB.yview_moveto(vw[0])
+
+def replace_list():
+    """
+    save the current listbox contents to a file
+    """
+    # get a list of listbox lines
+    temp_list = list(falseWord_MSB.get(0, 'end'))
+    for idx in reversed(range(len(falseWord_matches))):
+        if falseWord_matches[idx] == temp_list[idx]:
+            falseWord_matches.pop(idx)
+            temp_list.pop(idx)
+
+    for e in textElements:
+        # regex match on every text element to check whether it matches a wrongfully separated word
+        # print(e.text)
+        for repEl in range(len(temp_list)):
+            e.text = e.text.replace(falseWord_matches[repEl], temp_list[repEl])
+    tk.destroy()
 # File Dialog to choose htm-file
 tk = Tk()
 if len(sys.argv) < 2:
@@ -202,7 +257,7 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
                 falseWord_matches.extend(matchList)
     # remove duplicates from match list
     falseWord_matches = list(dict.fromkeys(falseWord_matches))
-    print(falseWord_matches)
+    # print(falseWord_matches)
 
     # set table headers row for row
     for table in std_tables:
@@ -270,6 +325,61 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
         p.text = unordered_list[0].sub('', p.text)
         p.tag = 'li'
 
+    # tkinter UI
+    if len(undef_matches) or len(falseWord_matches):
+        tk.title('False formatted numbers and words')
+        label = Label(tk, text='Double Click to copy')
+        label.pack(side='top')
+
+        # FRAME 1
+        undef_frame = Frame(tk, width=25, height=50)
+        undef_frame.pack(fill='y', side='left')
+        # LISTBOX 1
+        undef_MSB = Listbox(undef_frame, width=20, height=50)
+        undef_MSB.pack(side='left', expand=True)
+        undef_MSB.bind('<Double-Button-1>', listbox_copy)
+        # SCROLLBAR 1
+        undef_Scrollbar = Scrollbar(undef_frame, orient="vertical")
+        undef_Scrollbar.config(command=undef_MSB.yview)
+        undef_Scrollbar.pack(side="left", fill="y")
+        # CONFIG 1
+        undef_MSB.config(yscrollcommand=undef_Scrollbar.set)
+        for e in range(len(undef_matches)):
+            undef_MSB.insert(e, undef_matches[e])
+
+        # FRAME 2
+        falseWord_frame = Frame(tk, width=50, height=50)
+
+        listbox_frame = Frame(falseWord_frame, width=45, height=48)
+        listbox_frame.pack(side='bottom')
+
+        falseWord_frame.pack(fill='y', side='left')
+        # LISTBOX 2
+        falseWord_MSB = Listbox(listbox_frame, width=45, height=48)
+        falseWord_MSB.pack(side='left', expand=True)
+        # falseWord_MSB.bind('<Double-Button-1>', listbox_copy)
+        falseWord_MSB.bind('<ButtonRelease-1>', get_list)
+        # SCROLLBAR 2
+        falseWord_Scrollbar = Scrollbar(listbox_frame, orient="vertical")
+        falseWord_Scrollbar.config(command=falseWord_MSB.yview)
+        falseWord_Scrollbar.pack(side="left", fill="y")
+        # CONFIG 2
+        falseWord_MSB.config(yscrollcommand=falseWord_Scrollbar.set)
+        for e in range(len(falseWord_matches)):
+            falseWord_MSB.insert(e, falseWord_matches[e])
+
+        # ENTRY BOX
+        # use entry widget to display/edit selection
+        enter1 = Entry(falseWord_frame, width=50, bg='yellow')
+        enter1.insert(0, 'Click on an item in the listbox')
+        enter1.pack(side='top')
+        enter1.bind('<Return>', set_list)
+        enter1.focus_force()
+        button1 = Button(falseWord_frame, text='REPLACE AND QUIT', command=replace_list)
+        button1.pack(side='top')
+
+        tk.mainloop()
+
     # wrap all table contents in p-tags
     wrap(tree, "p")
     # write to new file in source folder
@@ -277,47 +387,3 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
 
 os.remove('tmp.htm')  # remove original
 
-# UI for number checks
-def listbox_copy(lb):
-    tk.clipboard_clear()
-    w = lb.widget
-    selected = int(w.curselection()[0])
-    tk.clipboard_append(w.get(selected))
-
-if len(undef_matches) is not 0:
-    tk.title('False formatted numbers and words')
-    label = Label(tk, text='Double Click to copy')
-    label.pack(side='top')
-    # FRAME 1
-    undef_frame = Frame(tk, width=25, height=50)
-    undef_frame.pack(fill='y', side='left')
-    # LISTBOX 1
-    undef_MSB = Listbox(undef_frame, width=20, height=50)
-    undef_MSB.pack(side='left', expand=True)
-    undef_MSB.bind('<Double-Button-1>', listbox_copy)
-    # SCROLLBAR 1
-    undef_Scrollbar = Scrollbar(undef_frame, orient="vertical")
-    undef_Scrollbar.config(command=undef_MSB.yview)
-    undef_Scrollbar.pack(side="left", fill="y")
-    # CONFIG 1
-    undef_MSB.config(yscrollcommand=undef_Scrollbar.set)
-    for e in range(len(undef_matches)):
-        undef_MSB.insert(e, undef_matches[e])
-
-    # FRAME 2
-    falseWord_frame = Frame(tk, width=50, height=50)
-    falseWord_frame.pack(fill='y', side='left')
-    # LISTBOX 2
-    falseWord_MSB = Listbox(falseWord_frame, width=45, height=50)
-    falseWord_MSB.pack(side='left', expand=True)
-    falseWord_MSB.bind('<Double-Button-1>', listbox_copy)
-    # SCROLLBAR 2
-    falseWord_Scrollbar = Scrollbar(falseWord_frame, orient="vertical")
-    falseWord_Scrollbar.config(command=falseWord_MSB.yview)
-    falseWord_Scrollbar.pack(side="left", fill="y")
-    # CONFIG 2
-    falseWord_MSB.config(yscrollcommand=falseWord_Scrollbar.set)
-    for e in range(len(falseWord_matches)):
-        falseWord_MSB.insert(e, falseWord_matches[e])
-
-    tk.mainloop()
