@@ -249,7 +249,7 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     falseWord_matches = []
     for e in textElements:
         # regex match on every text element to check whether it matches a wrongfully separated word
-        print(e.text)
+        # print(e.text)
         if e.text:
             for regex_match in falseWord_list:
                 matchList = regex_match.findall(e.text)
