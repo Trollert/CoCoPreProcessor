@@ -76,7 +76,8 @@ def replace_list():
         # regex match on every text element to check whether it matches a wrongfully separated word
         # print(e.text)
         for repEl in range(len(temp_list)):
-            e.text = e.text.replace(falseWord_matches[repEl], temp_list[repEl])
+            if e.text:
+                e.text = e.text.replace(falseWord_matches[repEl], temp_list[repEl])
     tk.destroy()
 # File Dialog to choose htm-file
 tk = Tk()
