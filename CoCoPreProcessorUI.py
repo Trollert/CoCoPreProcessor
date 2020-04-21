@@ -65,6 +65,13 @@ regFalseWords = [
 # get list of allowed text elements
 lAllowedWords = open('allowed_words.txt').read().splitlines()
 
+# get list of sup-always elements
+lSupElements = [
+    '©',
+    '®',
+    '™'
+]
+
             #####################
             # TKINTER FUNCTIONS #
             #####################
@@ -135,7 +142,7 @@ def replace_word_list(listbox):
     # get a list of listbox lines
     temp_list = list(listbox.get(0, 'end'))
     tempAllFalseWords = lAllFalseWordMatches
-    print(len(lAllFalseWordMatches))
+    # print(len(lAllFalseWordMatches))
     for idx in reversed(range(len(tempAllFalseWords))):
         if tempAllFalseWords[idx] == temp_list[idx]:
             tempAllFalseWords.pop(idx)
@@ -152,7 +159,7 @@ def replace_number_list(listbox):
     # get a list of listbox lines
     temp_list = list(listbox.get(0, 'end'))
     tempAllfalseNumbers = lFalseNumberMatches
-    print(lFalseNumberMatches)
+    # print(lFalseNumberMatches)
     for idx in reversed(range(len(tempAllfalseNumbers))):
         if tempAllfalseNumbers[idx] == temp_list[idx]:
             tempAllfalseNumbers.pop(idx)
@@ -230,7 +237,7 @@ def get_false_Numbers(lFalseNumberMatches):
 # returns list of strings of all false separated words
 def get_false_Words(lAllFalseWordMatches):
     # check false word separations
-    # get all elements that contain text (p/h1/h2/h3)
+    # get all elements that contain text (p/h1/h2/h3/td)
     leTextElements = tree.xpath('.//*[normalize-space(text())]')
     # print(textElements)
     for e in leTextElements:
@@ -330,8 +337,22 @@ def remove_empty_rows():
     for row in tree.xpath('//tr[* and not(*[node()])]'):
         row.getparent().remove(row)
 
+fSupElements = BooleanVar(value=0)
+def sup_elements(path, entry):
+    with open(path, 'r', encoding='UTF-8') as fi, open('temp.htm', 'w', encoding='UTF-8') as fo:
+        rawText = fi.read()
+        fi.close()
+        os.remove(path)
+        lUserSupElements = entry.get().replace(' ', '').split(',')
+        for sup in lUserSupElements:
+            rawText = rawText.replace(sup, '<sup>' + sup + '</sup>')
+        fo.write(rawText)
+        fo.close()
+        os.rename('temp.htm', path)
+    # leTextNotHeader = tree.xpath('.//*[normalize-space(text()) and not(self::h1] and not(self::h2) and not(self::h3)')
+
 # generate htm file
-def generate_file():
+def generate_file(entryCkb):
     if fSetUnorderedList.get():
         set_unordered_list()
     if fFootnotetables.get():
@@ -348,6 +369,8 @@ def generate_file():
     wrap(tree, "p")
     # write to new file in source folder
     tree.write(os.path.splitext(tk.filename)[0] + '_modified.htm', encoding='UTF-8', method='html')
+    if fSupElements.get():
+        sup_elements(os.path.splitext(tk.filename)[0] + '_modified.htm', entryCkb)
     tk.destroy()
 
                 #####################
@@ -453,7 +476,7 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     # ENTRY BOX NUMBERS
     # use entry widget to display/edit selection
     entryNumbers = Entry(frameNumbers, width=25, bg='yellow')
-    entryNumbers.insert(0, 'Correct here!')
+
     entryNumbers.pack(side='top')
     entryNumbers.bind('<Return>', partial(set_list, listboxNumbers, entryNumbers))
     listboxNumbers.bind('<ButtonRelease-1>', partial(get_list, listboxNumbers, entryNumbers))
@@ -497,13 +520,25 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     ckbEmptyRows = Checkbutton(frameChecks, anchor='w', text='remove empty rows', variable=fRemoveEmptyRows)
     ckbWords = Checkbutton(frameChecks, anchor='w', text='replace fixed words', variable=fReplaceWords)
     ckbNumbers = Checkbutton(frameChecks, anchor='w', text='replace fixed numbers', variable=fReplaceNumbers)
+
     ckbHeaders.pack(side='top', anchor='w')
     ckbFootnotes.pack(side='top', anchor='w')
     ckbEmptyRows.pack(side='top', anchor='w')
     ckbWords.pack(side='top', anchor='w')
     ckbNumbers.pack(side='top', anchor='w')
 
-    buttonGenerate = Button(frameChecks, height=3, width=20, bd=2, fg='white', font=('Arial', 15), text='GENERATE FILE \n AND QUIT', command=generate_file, bg='dark green')
+    # Sup check button
+    labelCkb = Label(frameChecks, text='\nSuperscript elements')
+    labelCkb.pack(side='top', anchor='w')
+    frameCkb = Frame(frameChecks, width=25, height=5)
+    frameCkb.pack(side='top')
+    ckbSup = Checkbutton(frameCkb, anchor='w', variable=fSupElements)
+    ckbSup.pack(side='left', anchor='w')
+    entryCkb = Entry(frameCkb, width=23, )
+    entryCkb.insert(0, ', '.join(lSupElements))
+    entryCkb.pack(side='left')
+
+    buttonGenerate = Button(frameChecks, height=3, width=20, bd=2, fg='white', font=('Arial', 15), text='GENERATE FILE \n AND QUIT', command= partial(generate_file, entryCkb), bg='dark green')
     buttonGenerate.pack(side='bottom')
     tk.mainloop()
 
