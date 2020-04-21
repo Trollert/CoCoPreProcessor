@@ -4,6 +4,7 @@ import os
 from tkinter import Tk, filedialog, Listbox, Label, Scrollbar, Frame, Entry,Button
 from lxml import html, etree
 from lxml.html.clean import Cleaner
+from functools import partial
 
 def wrap(root, tag):
     # find <td> elements that do not have a <p> element
@@ -30,54 +31,54 @@ def listbox_copy(lb):
     selected = int(w.curselection()[0])
     tk.clipboard_append(w.get(selected))
 
-def set_list(event):
+def set_list(list, entry, event):
     """
     insert an edited line from the entry widget
     back into the listbox
     """
-    vw = falseWord_MSB.yview()
-    index = falseWord_MSB.curselection()[0]
+    vw = list.yview()
+    index = list.curselection()[0]
 
     # delete old listbox line
-    falseWord_MSB.delete(index)
+    list.delete(index)
 
     # insert edited item back into listbox1 at index
-    falseWord_MSB.insert(index, enter1.get())
-    falseWord_MSB.yview_moveto(vw[0])
+    list.insert(index, entry.get())
+    list.yview_moveto(vw[0])
 
 def get_list(event):
     """
     function to read the listbox selection
     and put the result in an entry widget
     """
-    vw = falseWord_MSB.yview()
+    vw = listboxWords.yview()
     # get selected line index
-    index = falseWord_MSB.curselection()[0]
+    index = listboxWords.curselection()[0]
     # get the line's text
-    seltext = falseWord_MSB.get(index)
+    seltext = listboxWords.get(index)
     # delete previous text in enter1
-    enter1.delete(0, 100)
+    entryWords.delete(0, 100)
     # now display the selected text
-    enter1.insert(0, seltext)
-    falseWord_MSB.yview_moveto(vw[0])
+    entryWords.insert(0, seltext)
+    listboxWords.yview_moveto(vw[0])
 
 def replace_list():
     """
     save the current listbox contents to a file
     """
     # get a list of listbox lines
-    temp_list = list(falseWord_MSB.get(0, 'end'))
-    for idx in reversed(range(len(falseWord_matches))):
-        if falseWord_matches[idx] == temp_list[idx]:
-            falseWord_matches.pop(idx)
+    temp_list = list(listboxWords.get(0, 'end'))
+    for idx in reversed(range(len(lAllFalseWordMatches))):
+        if lAllFalseWordMatches[idx] == temp_list[idx]:
+            lAllFalseWordMatches.pop(idx)
             temp_list.pop(idx)
 
-    for e in textElements:
+    for e in leTextElements:
         # regex match on every text element to check whether it matches a wrongfully separated word
         # print(e.text)
         for repEl in range(len(temp_list)):
             if e.text:
-                e.text = e.text.replace(falseWord_matches[repEl], temp_list[repEl])
+                e.text = e.text.replace(lAllFalseWordMatches[repEl], temp_list[repEl])
     tk.destroy()
 # File Dialog to choose htm-file
 tk = Tk()
@@ -104,7 +105,7 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     tree = html.parse(input_file)
 
     # compile footnote patterns as regex object
-    footnote_matches = [
+    regFootnote = [
         re.compile('\s*\d{1,2}\s*'),
         re.compile('\s*\*{1,9}\s*'),
         re.compile('\s*\*{1,9}\)\s*'),
@@ -114,7 +115,7 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     ]
 
     # compile number format as regex objects
-    number_formats = [
+    regNumbers = [
         re.compile('(^\s*?[-+$]{0,3}\s*?\(?\d{1,3}\)?[ €$%]{0,2}$)', re.MULTILINE),                        # 123 has to be first, to prevent double matches
         re.compile('(^\s*?[-+€]{0,3}\s*?\(?\d{1,3}(\.\d{3})*?(,\d{1,5})?\)?\s*?[€%]?\s*?$)', re.MULTILINE),  # 123.123,12000 ; 123,1 ; 123
         re.compile('(^\s*?[-+$]{0,3}\s*?\(?\d{1,3}(,\d{3})*?(\.\d{1,5})?\)?\s*?[$%]?\s*?$)', re.MULTILINE),  # 123,123.12 ; 123.1 ; 123
@@ -128,17 +129,17 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
         re.compile('^\s*?(in)?\s*?(T|Tsd|Mio|Mrd)?\.?\s?[€$]\s*?$', re.MULTILINE)  # T€, Mio. €, Mrd. €, in €
     ]
 
-    header_list = [
-        number_formats[7],                                      # dates
-        number_formats[6],                                      # year
-        number_formats[9]                                       # T€, Mio. €, Mrd. €, in €
+    regHeaderContent = [
+        regNumbers[7],                                      # dates
+        regNumbers[6],                                      # year
+        regNumbers[9]                                       # T€, Mio. €, Mrd. €, in €
     ]
 
-    unordered_list = [
+    regUnorderedList = [
         re.compile('^\s*?[►•■-]\s', re.MULTILINE)
     ]
 
-    falseWord_list = [
+    regFalseWords = [
         re.compile(r'(\b[A-ZÖÄÜa-zäöüß][a-zäöüß]*?[a-zäöüß][A-ZÄÖÜ][a-zäöüß]*?\b)', re.MULTILINE),          # CashFlow, cashFlow
         re.compile(r'(\b[A-ZÖÄÜa-zäöüß][a-zäöüß]*?\b-\b[a-zäöüß]{1,}?\b)', re.MULTILINE),                 # ex-terne, Ex-terne
         re.compile(r'\b[A-ZÖÄÜa-zäöüß]{1,}?soder\b', re.MULTILINE),                                   #  Unternehmungsoder
@@ -187,114 +188,116 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     )
     tree = cleaner.clean_html(tree)
 
-    tables = tree.xpath('//table')
+    leAllTables = tree.xpath('//table')
     # check if tables are footnote tables
-    for table in range(len(tables)):
-        f_cells = []
-        matches = []
+    for table in range(len(leAllTables)):
+        leFirstColCells = []
+        lbFootnoteMatches = []
         # print(len(tables[table].xpath('.//tr[1]/td')))
         # check first whether table is exactly 2 columns wide
         # print(table)
-        if len(tables[table].xpath('.//tr[last()]/td')) == 2:
+        if len(leAllTables[table].xpath('.//tr[last()]/td')) == 2:
             # create list from first column values
-            f_cells.append(tables[table].xpath('.//tr/td[1]'))
+            leFirstColCells.append(leAllTables[table].xpath('.//tr/td[1]'))
             # flatten list
-            f_cells = [item for sublist in f_cells for item in sublist]
+            leFirstColCells = [item for sublist in leFirstColCells for item in sublist]
             # check if any footnote regex pattern matches, if yes set corresponding matches list value to true
-            for element in f_cells:
+            for eCell in leFirstColCells:
                 # remove sup, sub-tags if found
-                for el in element:
+                for el in eCell:
                     if el.tag == 'sup' or el.tag == 'sub':
                         el.drop_tag()
                 # create list with bool values of every regex, td-value match
-                if element.text is not None:
-                    matches.append(any(list(reg.fullmatch(element.text) for reg in footnote_matches)))
+                if eCell.text is not None:
+                    lbFootnoteMatches.append(any(list(reg.fullmatch(eCell.text) for reg in regFootnote)))
                 else:
-                    matches.append(False)
+                    lbFootnoteMatches.append(False)
             # check if all footnote cell values matched with regex pattern
-            if all(matches):
+            if all(lbFootnoteMatches):
                 # if yes set table attribute to "footnote" and insert anchors
-                for element in f_cells:
-                    etree.SubElement(element, 'a', id='a' + str(table + 1) + str(f_cells.index(element)))
-                tables[table].set('class', 'footnote')
+                for eCell in leFirstColCells:
+                    etree.SubElement(eCell, 'a', id='a' + str(table + 1) + str(leFirstColCells.index(eCell)))
+                leAllTables[table].set('class', 'footnote')
             # clear lists
-            f_cells.clear()
-            matches.clear()
+            leFirstColCells.clear()
+            lbFootnoteMatches.clear()
 
     # check numbers in table cells
     # get all tables that are not footnote tables
-    std_tables = tree.xpath('//table[not(@class="footnote")]')
-    undef_matches = []
-    for table in std_tables:
-        subtable = []
-        format_count = [0] * len(number_formats)
+    leStandardTables = tree.xpath('//table[not(@class="footnote")]')
+    lFalseNumberMatches = []
+    for table in leStandardTables:
+        leSubtables = []
+        iFormatCount = [0] * len(regNumbers)
         # select all non-empty td-elements, beginning at second column
-        subtable.append(table.xpath('.//tr/td[position() > 1]'))
-        for row in subtable:
+        leSubtables.append(table.xpath('.//tr/td[position() > 1]'))
+        for row in leSubtables:
             for cell in row:
-                cell_format = [0] * len(number_formats)
-                for i in range(len(number_formats)):
+                cell_format = [0] * len(regNumbers)
+                for i in range(len(regNumbers)):
                     # breaks after first match
-                    if cell.text is not None and number_formats[i].fullmatch(str(cell.text)):
+                    if cell.text is not None and regNumbers[i].fullmatch(str(cell.text)):
                         cell_format[i] += 1
                         break
                 if sum(cell_format):
-                    format_count = [a + b for a, b in zip(format_count, cell_format)]
+                    iFormatCount = [a + b for a, b in zip(iFormatCount, cell_format)]
                 else:
-                    undef_matches.append(cell.text)
+                    lFalseNumberMatches.append(cell.text)
 
     # check false word separations
     # get all elements that contain text (p/h1/h2/h3)
-    textElements = tree.xpath('.//*[normalize-space(text())]')
+    leTextElements = tree.xpath('.//*[normalize-space(text())]')
     # print(textElements)
-    falseWord_matches = []
-    for e in textElements:
+    lAllFalseWordMatches = []
+    for e in leTextElements:
         # regex match on every text element to check whether it matches a wrongfully separated word
         # print(e.text)
         if e.text:
-            for regex_match in falseWord_list:
-                matchList = regex_match.findall(e.text)
-                # print(matchList)
-                if len(matchList):
-                    falseWord_matches.extend(matchList)
+            for regex_match in regFalseWords:
+                lCurrentMatches = regex_match.findall(e.text)
+                if len(lCurrentMatches):
+                    lAllFalseWordMatches.extend(lCurrentMatches)
     # remove duplicates from match list
-    falseWord_matches = list(dict.fromkeys(falseWord_matches))
-    # print(falseWord_matches)
+    lAllFalseWordMatches = list(dict.fromkeys(lAllFalseWordMatches))
 
     # set table headers row for row
-    for table in std_tables:
-        header_flag = False
-        break_out = False
-        header_rows = -1    # -1 for later comparison with 0 index
+    for table in leStandardTables:
+        fHeader = False
+        fBreakOut = False
+        iHeaderRows = -1    # -1 for later comparison with 0 index
         for row in table:
             for cell in row:
                 if cell.text is not None:
-                    if any(list(reg.fullmatch(cell.text) for reg in header_list)):
-                        header_flag = True
-                        header_rows = table.index(row)
-                    if any(list(reg.fullmatch(cell.text) for reg in number_formats[0:4])):
+                    # first compare cell content to header content matches
+                    # if anything matches, set current row to header row
+                    if any(list(reg.fullmatch(cell.text) for reg in regHeaderContent)):
+                        fHeader = True
+                        iHeaderRows = table.index(row)
+                    # then compare to number matches
+                    # if it matches here the function quits and reverts back to previous header row
+                    if any(list(reg.fullmatch(cell.text) for reg in regNumbers[0:4])):
                         # print('found number')
-                        header_rows = old
-                        break_out = True
+                        iHeaderRows = iOldHeaderRow
+                        fBreakOut = True
                         break
-            if break_out:
+            if fBreakOut:
                 break
-            old = header_rows
+            iOldHeaderRow = iHeaderRows
 
         # get the first occuring row in which the first cell is not empty
-        first_textrow = table.xpath('./tr[td[position() = 1 and text()]][1]')
-        if len(first_textrow):
+        eFirstTextRow = table.xpath('./tr[td[position() = 1 and text()]][1]')
+        if len(eFirstTextRow):
             # index of the first cell with text - 1 to get only empty cells
-            text_cell_row = table.index(first_textrow[0]) - 1
-            if header_rows <= text_cell_row:
-                header_rows = text_cell_row
-                header_flag = True
+            iFirstTextCellRow = table.index(eFirstTextRow[0]) - 1
+            if iHeaderRows <= iFirstTextCellRow:
+                iHeaderRows = iFirstTextCellRow
+                fHeader = True
 
-        if header_flag:
+        if fHeader:
             # create lists with header and body elements
             # this is needed at the beginning, because the position changes when adding header and body tags
-            headers = table.xpath('.//tr[position() <= %s]' % str(header_rows + 1))
-            body = table.xpath('.//tr[position() > %s]' % str(header_rows + 1))
+            headers = table.xpath('.//tr[position() <= %s]' % str(iHeaderRows + 1))
+            body = table.xpath('.//tr[position() > %s]' % str(iHeaderRows + 1))
             # create thead-/tbody-tags
             table.insert(0, etree.Element('tbody'))
             table.insert(0, etree.Element('thead'))
@@ -306,78 +309,78 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
                 table.find('tbody').append(tbody)
 
     # find and set unordered lists
-    dash_list = []
-    dash_count = 0
+    leDashCandidates = []
+    iDashCount = 0
     for p in tree.xpath('//body/p'):
-        # check if beginning of paragraph matches safe list denominators (no -)
+        # check if beginning of paragraph matches safe list denominators
         if p.text:
             # if not check if "- " matches
-            if unordered_list[0].match(p.text):
-                dash_count += 1
+            if regUnorderedList[0].match(p.text):
+                iDashCount += 1
                 # append to list for later tag change
-                dash_list.append(p)
+                leDashCandidates.append(p)
             else:
                 # if only one dash is present, remove last element from dash list (single list item could be confused with
                 # wrong break)
-                if dash_count == 1:
-                    dash_list.pop()
-                dash_count = 0
+                if iDashCount == 1:
+                    leDashCandidates.pop()
+                iDashCount = 0
     # iterate through dash list and change to unordered list
-    for p in dash_list:
-        p.text = unordered_list[0].sub('', p.text)
+    for p in leDashCandidates:
+        p.text = regUnorderedList[0].sub('', p.text)
         p.tag = 'li'
 
     # tkinter UI
-    if len(undef_matches) or len(falseWord_matches):
+    if len(lFalseNumberMatches) or len(lAllFalseWordMatches):
+        # MASTER WINDOW
         tk.title('False formatted numbers and words')
-        label = Label(tk, text='Double Click to copy')
-        label.pack(side='top')
+        masterLabel = Label(tk, text='Double Click to copy')
+        masterLabel.pack(side='top')
 
         # FRAME 1
-        undef_frame = Frame(tk, width=25, height=50)
-        undef_frame.pack(fill='y', side='left')
+        frameNumbers = Frame(tk, width=25, height=50)
+        frameNumbers.pack(fill='y', side='left')
         # LISTBOX 1
-        undef_MSB = Listbox(undef_frame, width=20, height=50)
-        undef_MSB.pack(side='left', expand=True)
-        undef_MSB.bind('<Double-Button-1>', listbox_copy)
+        listboxNumbers = Listbox(frameNumbers, width=20, height=50)
+        listboxNumbers.pack(side='left', expand=True)
+        listboxNumbers.bind('<Double-Button-1>', listbox_copy)
         # SCROLLBAR 1
-        undef_Scrollbar = Scrollbar(undef_frame, orient="vertical")
-        undef_Scrollbar.config(command=undef_MSB.yview)
-        undef_Scrollbar.pack(side="left", fill="y")
+        scrollbarNumbers = Scrollbar(frameNumbers, orient="vertical")
+        scrollbarNumbers.config(command=listboxNumbers.yview)
+        scrollbarNumbers.pack(side="left", fill="y")
         # CONFIG 1
-        undef_MSB.config(yscrollcommand=undef_Scrollbar.set)
-        for e in range(len(undef_matches)):
-            undef_MSB.insert(e, undef_matches[e])
+        listboxNumbers.config(yscrollcommand=scrollbarNumbers.set)
+        print(lFalseNumberMatches)
+        for e in range(len(lFalseNumberMatches)):
+            listboxNumbers.insert(e, lFalseNumberMatches[e])
 
         # FRAME 2
-        falseWord_frame = Frame(tk, width=50, height=50)
-
-        listbox_frame = Frame(falseWord_frame, width=45, height=48)
-        listbox_frame.pack(side='bottom')
-
-        falseWord_frame.pack(fill='y', side='left')
+        frameWords = Frame(tk, width=50, height=50)
+        frameLbWords = Frame(frameWords, width=45, height=48)
+        frameLbWords.pack(side='bottom')
+        frameWords.pack(fill='y', side='left')
         # LISTBOX 2
-        falseWord_MSB = Listbox(listbox_frame, width=45, height=48)
-        falseWord_MSB.pack(side='left', expand=True)
+        listboxWords = Listbox(frameLbWords, width=45, height=48)
+        listboxWords.pack(side='left', expand=True)
         # falseWord_MSB.bind('<Double-Button-1>', listbox_copy)
-        falseWord_MSB.bind('<ButtonRelease-1>', get_list)
+        listboxWords.bind('<ButtonRelease-1>', get_list)
         # SCROLLBAR 2
-        falseWord_Scrollbar = Scrollbar(listbox_frame, orient="vertical")
-        falseWord_Scrollbar.config(command=falseWord_MSB.yview)
-        falseWord_Scrollbar.pack(side="left", fill="y")
+        scrollbarWords = Scrollbar(frameLbWords, orient="vertical")
+        scrollbarWords.config(command=listboxWords.yview)
+        scrollbarWords.pack(side="left", fill="y")
         # CONFIG 2
-        falseWord_MSB.config(yscrollcommand=falseWord_Scrollbar.set)
-        for e in range(len(falseWord_matches)):
-            falseWord_MSB.insert(e, falseWord_matches[e])
+        listboxWords.config(yscrollcommand=scrollbarWords.set)
+        for e in range(len(lAllFalseWordMatches)):
+            listboxWords.insert(e, lAllFalseWordMatches[e])
 
         # ENTRY BOX
         # use entry widget to display/edit selection
-        enter1 = Entry(falseWord_frame, width=50, bg='yellow')
-        enter1.insert(0, 'Click on an item in the listbox')
-        enter1.pack(side='top')
-        enter1.bind('<Return>', set_list)
-        enter1.focus_force()
-        button1 = Button(falseWord_frame, text='REPLACE AND QUIT', command=replace_list)
+        entryWords = Entry(frameWords, width=50, bg='yellow')
+        entryWords.insert(0, 'Click on an item in the listbox')
+        entryWords.pack(side='top')
+        entryWords.bind('<Return>', partial(set_list, listboxWords, entryWords))
+        entryWords.focus_force()
+        button1 = Button(frameWords, text='REPLACE AND QUIT', command=replace_list)
         button1.pack(side='top')
 
         tk.mainloop()
