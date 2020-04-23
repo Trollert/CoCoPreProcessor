@@ -3,3 +3,4 @@ mbH
 GuV
 AktG
 BaFin
+VaR

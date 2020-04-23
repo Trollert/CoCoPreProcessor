@@ -35,7 +35,7 @@ regNumbers = [
     # 123 123,12 ; 123,1 ; 123
     re.compile('(^\s*?[-+$]{0,3}\s*?\(?\d{1,3}(\s\d{3})*?(\.\d{1,5})?\)?\s*?[€%]?\s*?$)', re.MULTILINE),
     # 123 123.12 ; 123.1 ; 123
-    re.compile('^\s*?(%|n\/a)\s*?$'),
+    re.compile('^\s*?(%|n\/a|n\.a)\s*?$'),
 
     # other allowed cell content
     re.compile('^[-.,\s]+$', re.MULTILINE),  # empty cells and placeholder -,.
@@ -47,13 +47,13 @@ regNumbers = [
 ]
 
 regHeaderContent = [
-    regNumbers[7],  # dates
-    regNumbers[6],  # year
-    regNumbers[9]  # T€, Mio. €, Mrd. €, in €
+    regNumbers[8],  # dates
+    regNumbers[7],  # year
+    regNumbers[10]  # T€, Mio. €, Mrd. €, in €
 ]
 
 regUnorderedList = [
-    re.compile('^\s*?[►•■-]\s', re.MULTILINE)
+    re.compile('^\s*?[►•■\-□]\s?', re.MULTILINE)
 ]
 
 regFalseWords = [
@@ -352,6 +352,12 @@ def sup_elements(path, entry):
         os.rename('temp.htm', path)
     # leTextNotHeader = tree.xpath('.//*[normalize-space(text()) and not(self::h1] and not(self::h2) and not(self::h3)')
 
+fSpanHeaders = BooleanVar(value=0)
+def set_span_headers(lSpanHeaders):
+    for span in lSpanHeaders:
+        span[0].drop_tag()
+        span.tag = 'h3'
+
 # generate htm file
 def generate_file(entryCkb):
     if fSetUnorderedList.get():
@@ -364,6 +370,8 @@ def generate_file(entryCkb):
         replace_word_list(listboxWords)
     if fRemoveEmptyRows.get():
         remove_empty_rows()
+    if fSpanHeaders.get():
+        set_span_headers(leSpanHeaders)
     if fSetHeaders.get():
         set_headers()
     # wrap all table contents in p-tags
@@ -436,13 +444,40 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     for li in tree.xpath('//td/li'):
         li.drop_tag()
 
+    for tag in tree.xpath('//*[@class]'):
+        # For each element with a class attribute, remove that class attribute
+        tag.attrib.pop('class')
+
+    # remove sup/sub tags in unordered list candidates
+    for sup in tree.xpath('//*[self:: sup or self::sub]'):
+        if any(list(reg.fullmatch(sup.text) for reg in regUnorderedList)):
+            sup.drop_tag()
+
+    # execute only if a formatted html file is used (ABBYY export formatted file)
+    leSpanHeaders = []
+    if tree.xpath('/html/head/style'):
+        print('Found formatted File')
+        # select all span tags that are the only thing present in a p tag (heading candidates)
+        for span in tree.xpath('//*[self::span]/ancestor::p'):
+            # check if tag contains more than just the span tag
+            # if so skip it
+            if span.text is None:
+                # check if tag contains more than one span tag
+                # if so skip it
+                if len(span) == 1:
+                    leSpanHeaders.append(span)
+
+        for br in tree.xpath('//br[@*]'):
+            br.drop_tag()
+
     # remove unwanted tags
     cleaner = Cleaner(
-        remove_tags=['a', 'head', 'div'],
+        remove_tags=['a', 'head', 'div', 'span'],
         style=True,
         meta=True,
         remove_unknown_tags=False,
-        page_structure=False
+        page_structure=False,
+        inline_style=True
     )
     tree = cleaner.clean_html(tree)
 
@@ -521,12 +556,14 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     ckbEmptyRows = Checkbutton(frameChecks, anchor='w', text='remove empty rows', variable=fRemoveEmptyRows)
     ckbWords = Checkbutton(frameChecks, anchor='w', text='replace fixed words', variable=fReplaceWords)
     ckbNumbers = Checkbutton(frameChecks, anchor='w', text='replace fixed numbers', variable=fReplaceNumbers)
+    ckbSpanHeaders = Checkbutton(frameChecks, anchor='w', text='analyze heading (BETA)', variable=fSpanHeaders)
 
     ckbHeaders.pack(side='top', anchor='w')
     ckbFootnotes.pack(side='top', anchor='w')
     ckbEmptyRows.pack(side='top', anchor='w')
     ckbWords.pack(side='top', anchor='w')
     ckbNumbers.pack(side='top', anchor='w')
+    ckbSpanHeaders.pack(side='top', anchor='w')
 
     # Sup check button
     labelCkb = Label(frameChecks, text='\nSuperscript elements')
