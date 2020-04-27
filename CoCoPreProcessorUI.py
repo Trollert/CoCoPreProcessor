@@ -43,7 +43,7 @@ regNumbers = [
     re.compile('^\s*?\(?[0123]?\d?[./-]?[0123]?\d[./-](19|20)?\d{2}\)?\s*?$', re.MULTILINE),
     # dates 12.02.1991; 12.31.91: 12.31.2091
     re.compile('^.*[A-Za-z]{2,}.*$', re.DOTALL),  # text
-    re.compile('^\s*?(in)?\s*?(T|Tsd|Mio|Mrd)?\.?\s?[€$]\s*?$', re.MULTILINE)  # T€, Mio. €, Mrd. €, in €
+    re.compile('^\s*?(in)?\s*?(T|Tsd|Mio|Mrd|Teur)?\.?\s?[€$]\s*?$', re.IGNORECASE)  # T€, Mio. €, Mrd. €, in €
 ]
 
 regHeaderContent = [
@@ -64,7 +64,7 @@ regFalseWords = [
 ]
 
 # get list of allowed text elements
-lAllowedWords = open('allowed_words.txt').read().splitlines()
+lAllowedWords = open('allowed_words.txt', encoding='UTF-8').read().splitlines()
 
 # get list of sup-always elements
 lSupElements = [
@@ -250,9 +250,7 @@ def get_false_Words(lAllFalseWordMatches):
                 if len(lCurrentMatches):
                     lCurrentMatches = [elem for elem in lCurrentMatches if elem not in lAllowedWords]
                     lAllFalseWordMatches.extend(lCurrentMatches)
-    # remove duplicates from match list
-    lAllFalseWordMatches = list(dict.fromkeys(lAllFalseWordMatches))
-    return lAllFalseWordMatches
+    return list(dict.fromkeys(lAllFalseWordMatches))
 
 # sets header according to regex matches and empty first column cells
 fSetHeaders = BooleanVar(value=1)
@@ -533,7 +531,7 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     scrollbarWords.pack(side="left", fill="y")
     # CONFIG 2
     listboxWords.config(yscrollcommand=scrollbarWords.set)
-    get_false_Words(lAllFalseWordMatches)
+    lAllFalseWordMatches = get_false_Words(lAllFalseWordMatches)
     for e in range(len(lAllFalseWordMatches)):
         listboxWords.insert(e, lAllFalseWordMatches[e])
 
