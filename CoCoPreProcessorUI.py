@@ -25,17 +25,17 @@ regFootnote = [
 
 # compile number format as regex objects
 regNumbers = [
-    re.compile('(^\s*?[-+$]{0,3}\s*?\(?\d{1,3}\)?[ €$%]{0,2}$)', re.MULTILINE),
+    re.compile('(^\s*?\(?\s*?[-+$]{0,3}\s*?\d{1,3}[ €$%]{0,2}\s*?\)?$)', re.MULTILINE),
     # 123 has to be first, to prevent double matches
-    re.compile('(^\s*?[-+€]{0,3}\s*?\(?\d{1,3}(\.\d{3})*?(,\d{1,5})?\)?\s*?[€%]?\s*?$)', re.MULTILINE),
+    re.compile('(^\s*?\(?\s*?[-+€]{0,3}\s*?\d{1,3}(\.\d{3})*?(,\d{1,5})?\s*?[€%]?\s*?\)?\s*?$)', re.MULTILINE),
     # 123.123,12000 ; 123,1 ; 123
-    re.compile('(^\s*?[-+$]{0,3}\s*?\(?\d{1,3}(,\d{3})*?(\.\d{1,5})?\)?\s*?[$%]?\s*?$)', re.MULTILINE),
+    re.compile('(^\s*?\(?\s*?[-+$]{0,3}\s*?\d{1,3}(,\d{3})*?(\.\d{1,5})?\s*?[$%]?\s*?\)?\s*?$)', re.MULTILINE),
     # 123,123.12 ; 123.1 ; 123
-    re.compile('(^\s*?[-+€]{0,3}\s*?\(?\d{1,3}(\s\d{3})*?(,\d{1,5})?\)?\s*?[€%]?\s*?$)', re.MULTILINE),
+    re.compile('(^\s*?\(?\s*?[-+€]{0,3}\s*?\d{1,3}(\s\d{3})*?(,\d{1,5})?\s*?[€%]?\s*?\)?\s*?$)', re.MULTILINE),
     # 123 123,12 ; 123,1 ; 123
-    re.compile('(^\s*?[-+$]{0,3}\s*?\(?\d{1,3}(\s\d{3})*?(\.\d{1,5})?\)?\s*?[€%]?\s*?$)', re.MULTILINE),
+    re.compile('(^\s*?\(?\s*?[-+$]{0,3}\s*?\d{1,3}(\s\d{3})*?(\.\d{1,5})?\s*?[€%]?\s*?\)?\s*?$)', re.MULTILINE),
     # 123 123.12 ; 123.1 ; 123
-    re.compile('^\s*?(%|n\/a|n\.a)\s*?$'),
+    re.compile('^\s*?(%|n\/a|n\.a)\s*?$', re.IGNORECASE),
 
     # other allowed cell content
     re.compile('^[-.,\s]+$', re.MULTILINE),  # empty cells and placeholder -,.
@@ -43,7 +43,7 @@ regNumbers = [
     re.compile('^\s*?\(?[0123]?\d?[./-]?[0123]?\d[./-](19|20)?\d{2}\)?\s*?$', re.MULTILINE),
     # dates 12.02.1991; 12.31.91: 12.31.2091
     re.compile('^.*[A-Za-z]{2,}.*$', re.DOTALL),  # text
-    re.compile('^\s*?(in)?\s*?(T|Tsd|Mio|Mrd|Teur)?\.?\s?[€$]\s*?$', re.IGNORECASE)  # T€, Mio. €, Mrd. €, in €
+    re.compile('^\s*?(in)?\s*?(T|Tsd|Mio|Mrd|Teur)?\.?\s?[€$]\s*?$', re.IGNORECASE | re.MULTILINE)  # T€, Mio. €, Mrd. €, in €
 ]
 
 regHeaderContent = [
