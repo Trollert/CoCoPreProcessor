@@ -41,7 +41,7 @@ regNumbers = [
     re.compile('^\s*?(%|n\/a|n\.a)\s*?$', re.IGNORECASE),
 
     # other allowed cell content
-    re.compile('^[-.,\s]+$', re.MULTILINE),  # empty cells and placeholder -,.
+    re.compile('^[-.,§\s]+$', re.MULTILINE),  # empty cells and placeholder -,.
     re.compile('^\s*?(19|20)\d{2}\s*?$', re.MULTILINE),  # year 1900 - 2099
     re.compile('^\s*?\(?[0123]?\d?[./-]?[0123]?\d[./-](19|20)?\d{2}\)?\s*?$', re.MULTILINE),
     # dates 12.02.1991; 12.31.91: 12.31.2091
