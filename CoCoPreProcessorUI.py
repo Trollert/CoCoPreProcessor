@@ -10,6 +10,9 @@ from functools import partial
 lAllFalseWordMatches = []
 lFalseNumberMatches = []
 
+# global flags
+bFoundError = False
+
 ##################
 # REGEX PATTERNS #
 ##################
@@ -393,6 +396,7 @@ def remove_empty_rows():
 # merge marked tables vertically
 fMergeTablesVertically = BooleanVar(value=1)
 def merge_tables_vertically():
+    global bFoundError
     leMergeTables = tree.xpath(
         '//table[tr[1]/td[1][starts-with(normalize-space(text()),"§§")] or tr[last()]/td[last()][starts-with(normalize-space(text()),"§§")]]')
     leToMerge = []
@@ -413,6 +417,7 @@ def merge_tables_vertically():
                                                                                                                   'and end marker: ' + str(
                         table.xpath('./tr[last()]/td[last()]/text()')))
                     fContinuedMerge = False
+                    bFoundError = True
                     continue
                 else:
                     leToMerge.append(table)
@@ -426,12 +431,14 @@ def merge_tables_vertically():
                 print('Error in start marker position! Check the markers in ABBYY!\n'
                       'Error found in table with start marker: ' + str(table.xpath('./tr[1]/td[1]/text()')))
                 fContinuedMerge = False
+                bFoundError = True
                 continue
             else:
                 leToMerge.append(table)
                 fContinuedMerge = False
         else:
             print('No markers detected, this shouldnt happen, report this bug!')
+            bFoundError = True
             break
         # next table included in merge?
         # if not merge collected tables
@@ -470,7 +477,9 @@ def merge_tables_vertically():
                     'You try to merge tables with different amount of table columns. Fix this in ABBYY or CoCo! Tables will not be merged!')
                 print('Table end marker: ' + str(leToMerge[0].xpath('./tr[last()]/td[last()]/text()')))
                 print(iColNumbers)
+                bFoundError = True
             leToMerge = []
+
 
 
 fSupElements = BooleanVar(value=0)
@@ -735,8 +744,6 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
                                variable=fMergeTablesVertically)
     ckbSpanHeaders = Checkbutton(frameChecks, anchor='w', text='analyze heading (BETA)', variable=fSpanHeaders)
     ckbRenamePics = Checkbutton(frameChecks, anchor='w', text='rename .png to .jpg', variable=fRenamePictures)
-    keepConsoleOpenOnError = BooleanVar(value=0)
-    ckbKeepConsoleOpenOnError = Checkbutton(frameChecks, anchor='w', text='keep console open on error', variable=keepConsoleOpenOnError)
 
     ckbHeaders.pack(side='top', anchor='w')
     ckbFootnotes.pack(side='top', anchor='w')
@@ -746,7 +753,6 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     ckbVertMerge.pack(side='top', anchor='w')
     ckbSpanHeaders.pack(side='top', anchor='w')
     ckbRenamePics.pack(side='top', anchor='w')
-    ckbKeepConsoleOpenOnError.pack(side='top', anchor='w')
 
     # Sup check button
     labelCkb = Label(frameChecks, text='\nSuperscript elements')
@@ -765,6 +771,5 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     tk.mainloop()
 
 os.remove('tmp.htm')  # remove original
-
-if keepConsoleOpenOnError.get():
+if bFoundError:
     input('Fix displayed errors and press ENTER to quit!')
