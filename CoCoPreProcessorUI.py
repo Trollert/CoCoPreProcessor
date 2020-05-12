@@ -10,9 +10,9 @@ from functools import partial
 lAllFalseWordMatches = []
 lFalseNumberMatches = []
 
-            ##################
-            # REGEX PATTERNS #
-            ##################
+##################
+# REGEX PATTERNS #
+##################
 
 # compile footnote patterns as regex object
 regFootnote = [
@@ -43,17 +43,23 @@ regNumbers = [
     re.compile('^\s*?\(?[0123]?\d?[./-]?[0123]?\d[./-](19|20)?\d{2}\)?\s*?$', re.MULTILINE),
     # dates 12.02.1991; 12.31.91: 12.31.2091
     re.compile('^.*[A-Za-z]{2,}.*$', re.DOTALL),  # text
-    re.compile('^\s*?(in)?\s*?(T|Tsd|Mio|Mrd|Teur)?\.?\s?[€$]\s*?$', re.IGNORECASE | re.MULTILINE)  # T€, Mio. €, Mrd. €, in €
+    re.compile('^\s*?(in)?\s*?(TEUR|Tsd|Mio|Mrd|Jahre|T)?\.?\s?[€$]\s*?$', re.IGNORECASE | re.MULTILINE)
+    # T€, Mio. €, Mrd. €, in €
 ]
 
 regHeaderContent = [
     regNumbers[8],  # dates
     regNumbers[7],  # year
-    regNumbers[10]  # T€, Mio. €, Mrd. €, in €
+    regNumbers[10],  # T€, Mio. €, Mrd. €, in €
+    re.compile('^\s*?(in)?\s*?(TEUR|TSD|MRD|EUR)?\s*?$', re.IGNORECASE | re.MULTILINE),  # T€, Mio. €, Mrd. €, in €
+    re.compile('^\s*?[0123]?\d\.?\s*?(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.?\s*?(19|20)?\d{2}\s*?$',
+               re.IGNORECASE | re.MULTILINE),
+    re.compile('^\s*?[0123]?\d\.?\s*?(Jan|Feb|Mär|Apr|Mai|Jun|Jul|Aug|Sep|Okt|Nov|Dec)\.?\s*?(19|20)?\d{2}\s*?$',
+               re.IGNORECASE | re.MULTILINE)
 ]
 
 regUnorderedList = [
-    re.compile('^\s*?[►•■\-□]\s?', re.MULTILINE)
+    re.compile('^\s*?[►•■\-□^→]\s?', re.MULTILINE)
 ]
 
 regFalseWords = [
@@ -73,10 +79,12 @@ lSupElements = [
     '™'
 ]
 
-            #####################
-            # TKINTER FUNCTIONS #
-            #####################
+#####################
+# TKINTER FUNCTIONS #
+#####################
 tk = Tk()
+
+
 def wrap(root, tag):
     # find <td> elements that do not have a <p> element
     cells = etree.XPath("//td[not(p)]")(root)
@@ -95,12 +103,14 @@ def wrap(root, tag):
         # Set the new <p> element as the cell's child
         cell.append(e)
 
+
 # UI for number checks
 def listbox_copy(lb):
     tk.clipboard_clear()
     w = lb.widget
     selected = int(w.curselection()[0])
     tk.clipboard_append(w.get(selected))
+
 
 def set_list(list, entry, event):
     """
@@ -116,6 +126,7 @@ def set_list(list, entry, event):
     # insert edited item back into listbox1 at index
     list.insert(index, entry.get())
     list.yview_moveto(vw[0])
+
 
 def get_list(list, entry, event):
     """
@@ -133,8 +144,11 @@ def get_list(list, entry, event):
     entry.insert(0, seltext)
     list.yview_moveto(vw[0])
 
+
 fReplaceWords = BooleanVar(value=1)
 fReplaceNumbers = BooleanVar(value=1)
+
+
 def replace_word_list(listbox):
     """
     replace the corrected listbox items with their counterparts
@@ -155,6 +169,7 @@ def replace_word_list(listbox):
                 e.text = e.text.replace(tempAllFalseWords[repEl], temp_list[repEl])
     return lAllFalseWordMatches
 
+
 def replace_number_list(listbox):
     leNumberElements = tree.xpath('//table[not(@class="footnote")]/tr/td[normalize-space(text())]')
     # get a list of listbox lines
@@ -172,7 +187,10 @@ def replace_number_list(listbox):
                 e.text = e.text.replace(tempAllfalseNumbers[repEl], temp_list[repEl])
     return lFalseNumberMatches
 
+
 fFootnotetables = BooleanVar(value=1)
+
+
 def set_footnote_tables():
     leAllTables = tree.xpath('//table')
     # check if tables are footnote tables
@@ -208,7 +226,11 @@ def set_footnote_tables():
             leFirstColCells.clear()
             lbFootnoteMatches.clear()
 
+
 # returns list of elements of cells of all false number matches
+fFixNumbers = BooleanVar(value=1)
+
+
 def get_false_Numbers(lFalseNumberMatches):
     # check numbers in table cells
     # get all tables that are not footnote tables
@@ -232,8 +254,36 @@ def get_false_Numbers(lFalseNumberMatches):
                 if sum(cell_format):
                     iFormatCount = [a + b for a, b in zip(iFormatCount, cell_format)]
                 elif cell.text is not None:
-                    lFalseNumberMatches.append(cell.text)
+                    if fFixNumbers.get():
+                        if cell.find('br') is not None and re.fullmatch('[0-9,. -]*', cell.text):
+                            cell.find('br').drop_tag()
+                            if any(list(reg.fullmatch(re.sub(r'\s+', '', cell.text)) for reg in regNumbers[0:4])):
+                                cell.text = re.sub(r'\s+', '', cell.text)
+                        else:
+                            lFalseNumberMatches.append(cell.text)
+                    else:
+                        lFalseNumberMatches.append(cell.text)
     return lFalseNumberMatches
+
+
+# fSplitRowSpan = BooleanVar(value=1)
+# # split rowspan cells
+# def split_rowspan():
+#     leRowspanTables = tree.xpath('//table[.//td[@rowspan]]')
+#     # print(leRowspanTables)
+#     eEmptyTd = etree.Element('td')
+#     for table in leRowspanTables:
+#         for tr in table.xpath('./tr[.//td[@rowspan]]'):
+#             print('Row: ' + str(table.index(tr)))
+#             for td in tr.xpath('./td[@rowspan]'):
+#                 # for iRow in range(int(td.get('rowspan'))):
+#                     # table.
+#                 print(td)
+#                 # td.attrib.pop('rowspan')
+#                 table[table.index(tr)+1].insert(tr.index(td), eEmptyTd)
+#                 # print('Cell: ' + str(tr.index(td)))
+#
+#         # for tr in table.xpath('./tr[//td[@rowspan]]'):
 
 # returns list of strings of all false separated words
 def get_false_Words(lAllFalseWordMatches):
@@ -252,8 +302,11 @@ def get_false_Words(lAllFalseWordMatches):
                     lAllFalseWordMatches.extend(lCurrentMatches)
     return list(dict.fromkeys(lAllFalseWordMatches))
 
+
 # sets header according to regex matches and empty first column cells
 fSetHeaders = BooleanVar(value=1)
+
+
 def set_headers():
     # set table headers row for row
     leStandardTables = tree.xpath('//table[not(@class="footnote")]')
@@ -304,8 +357,11 @@ def set_headers():
             for tbody in body:
                 table.find('tbody').append(tbody)
 
+
 # set all unordered list elements according to regex matches, only for > 1 matches
 fSetUnorderedList = BooleanVar(value=1)
+
+
 def set_unordered_list():
     # find and set unordered lists
     leDashCandidates = []
@@ -329,14 +385,105 @@ def set_unordered_list():
         p.text = regUnorderedList[0].sub('', p.text)
         p.tag = 'li'
 
+
 # remove empty rows
 fRemoveEmptyRows = BooleanVar(value=1)
+
+
 def remove_empty_rows():
     # remove empty table rows
     for row in tree.xpath('//tr[* and not(*[node()])]'):
         row.getparent().remove(row)
 
+
+# merge marked tables vertically
+fMergeTablesVertically = BooleanVar(value=1)
+
+
+def merge_tables_vertically():
+    leMergeTables = tree.xpath(
+        '//table[tr[1]/td[1][starts-with(normalize-space(text()),"§§")] or tr[last()]/td[last()][starts-with(normalize-space(text()),"§§")]]')
+    leToMerge = []
+    fContinuedMerge = False
+    for table in leMergeTables:
+        iCols = []
+        fStartMarker = table.xpath('./tr[1]/td[1][starts-with(normalize-space(text()),"§§")]')
+        fEndMarker = table.xpath('./tr[last()]/td[last()][starts-with(normalize-space(text()),"§§")]')
+        # check if table has end marker (§§)
+        if fEndMarker:
+            # and start marker?
+            if fStartMarker:
+                # is merge list empty?
+                if not leToMerge:
+                    # BUG
+                    print('Error in marker start or end position! Check the markers in ABBYY!\n'
+                          'Error found in table with start marker: ' + str(table.xpath('./tr[1]/td[1]/text()')) + '\n'
+                                                                                                                  'and end marker: ' + str(
+                        table.xpath('./tr[last()]/td[last()]/text()')))
+                    fContinuedMerge = False
+                    continue
+                else:
+                    leToMerge.append(table)
+                    fContinuedMerge = True
+            else:
+                leToMerge.append(table)
+                fContinuedMerge = True
+        elif fStartMarker:
+            if not leToMerge:
+                # BUG
+                print('Error in start marker position! Check the markers in ABBYY!\n'
+                      'Error found in table with start marker: ' + str(table.xpath('./tr[1]/td[1]/text()')))
+                fContinuedMerge = False
+                continue
+            else:
+                leToMerge.append(table)
+                fContinuedMerge = False
+        else:
+            print('No markers detected, this shouldnt happen, report this bug!')
+            break
+        # next table included in merge?
+        # if not merge collected tables
+        if not fContinuedMerge:
+            # check if all tables in merge list have the same number of columns
+            iColNumbers = []
+            for mTable in leToMerge:
+                lColTemp = []
+                # get max number of columns in a row
+                for row in mTable:
+                    lColTemp.append(row.xpath('./td'))
+                iColNumbers.append(max(len(x) for x in lColTemp))
+            # do all merging candidates have the same number of columns?
+            if len(set(iColNumbers)) == 1:
+                # remove end marker
+                # for first table
+                leToMerge[0].xpath('./tr[last()]/td[last()]')[0].text = leToMerge[0].xpath('./tr[last()]/td[last()]')[
+                    0].text.replace('§§', '')
+                for i in range(1, len(leToMerge)):
+                    # remove start markers
+                    if leToMerge[i].xpath('./tr[1]/td[1]')[0].text is not None:
+                        leToMerge[i].xpath('./tr[1]/td[1]')[0].text = leToMerge[i].xpath('./tr[1]/td[1]')[
+                            0].text.replace('§§', '')
+                    # remove end markers
+                    # and every other table
+                    if leToMerge[i].xpath('./tr[last()]/td[last()]')[0].text is not None:
+                        leToMerge[i].xpath('./tr[last()]/td[last()]')[0].text = \
+                        leToMerge[i].xpath('./tr[last()]/td[last()]')[0].text.replace('§§', '')
+                    # append all rows from all tables to first table
+                    for row in leToMerge[i]:
+                        leToMerge[0].append(row)
+                    # remove now empty table
+                    leToMerge[i].getparent().remove(leToMerge[i])
+            else:
+                print(
+                    'You try to merge tables with different amount of table columns. Fix this in ABBYY or CoCo! Tables will not be merged!')
+                print('Table end marker: ' + str(leToMerge[0].xpath('./tr[last()]/td[last()]/text()')))
+                print(iColNumbers)
+            leToMerge = []
+
+
 fSupElements = BooleanVar(value=0)
+
+
 def sup_elements(path, entry):
     with open(path, 'r', encoding='UTF-8') as fi, open('temp.htm', 'w', encoding='UTF-8') as fo:
         rawText = fi.read()
@@ -350,14 +497,39 @@ def sup_elements(path, entry):
         os.rename('temp.htm', path)
     # leTextNotHeader = tree.xpath('.//*[normalize-space(text()) and not(self::h1] and not(self::h2) and not(self::h3)')
 
+
 fSpanHeaders = BooleanVar(value=0)
+
+
 def set_span_headers(lSpanHeaders):
     for span in lSpanHeaders:
         span[0].drop_tag()
         span.tag = 'h3'
 
+
+fRenamePictures = BooleanVar(value=1)
+
+
+def rename_pictures():
+    picFolder = os.path.splitext(tk.filename)[0] + '_files'
+    for filename in os.listdir(picFolder):
+        base_file, ext = os.path.splitext(filename)
+        if ext == ".png":
+            # rename reference in htm file
+            # get 'img' tag
+            ePngPic = tree.xpath('//img[@src="' + os.path.basename(picFolder) + '/' + filename + '"]')
+            # rename attribute "src"
+            ePngPic[0].attrib['src'] = os.path.basename(picFolder) + '/' + base_file + '.jpg'
+            # rename picture file
+            os.rename(picFolder + '/' + filename, picFolder + '/' + base_file + ".jpg")
+
+
 # generate htm file
 def generate_file(entryCkb):
+    if fRemoveEmptyRows.get():
+        remove_empty_rows()
+    if fMergeTablesVertically.get():
+        merge_tables_vertically()
     if fSetUnorderedList.get():
         set_unordered_list()
     if fFootnotetables.get():
@@ -366,27 +538,31 @@ def generate_file(entryCkb):
         replace_number_list(listboxNumbers)
     if fReplaceWords.get():
         replace_word_list(listboxWords)
-    if fRemoveEmptyRows.get():
-        remove_empty_rows()
+
+    # if fSplitRowSpan.get():
+    #     split_rowspan()
     if fSpanHeaders.get():
         set_span_headers(leSpanHeaders)
     if fSetHeaders.get():
         set_headers()
+    if fRenamePictures.get():
+        rename_pictures()
     # wrap all table contents in p-tags
-    wrap(tree, "p")
+    # wrap(tree, "p")
     # write to new file in source folder
     tree.write(os.path.splitext(tk.filename)[0] + '_modified.htm', encoding='UTF-8', method='html')
     if fSupElements.get():
         sup_elements(os.path.splitext(tk.filename)[0] + '_modified.htm', entryCkb)
     tk.destroy()
 
-                #####################
-                #     OPEN FILE     #
-                #####################
+    #####################
+    #     OPEN FILE     #
+    #####################
+
 
 if len(sys.argv) < 2:
     tk.filename = filedialog.askopenfilename(initialdir=r"C:\Users\blank\Desktop\XML", title="Select file",
-                                            filetypes=(("HTML files", "*.htm"), ("all files", "*.*")))
+                                             filetypes=(("HTML files", "*.htm"), ("all files", "*.*")))
 else:
     tk.filename = sys.argv[1]
 
@@ -397,16 +573,15 @@ with open(tk.filename, 'r', encoding='UTF-8') as fi, \
     new_str = fi.read()
     new = new_str.replace('CO2', 'CO<sub>2</sub>')  # replaces every occurrence of CO2
     new = new.replace('\u2013', '-')  # replaces en dash with normal dash
-    new = new.replace('\xa0', ' ')                                          # replaces non breaking spaces
+    new = new.replace('\xa0', ' ')  # replaces non breaking spaces
     # REMOVE WRONG LINE BREAK HERE BECAUSE I CANT FIGURE OUT HOW TO DO IT WITHIN THE PARSER
-    new = re.sub(r"(?sm)(?<=[a-zöüä\,;\xa0])\s*?</p>\s*?<p>(?=[a-zöäü])", ' ', new)
+    new = re.sub(r"(?sm)(?<=[a-zöüä\,;\xa0])\s*?</p>\s*?<p>(?=[a-zöäü][^)])", ' ', new)
     fo.write(new)
     fo.close()
 
-                    ################
-                    # PARSING FILE #
-                    ################
-
+    ################
+    # PARSING FILE #
+    ################
 
 with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     tree = html.parse(input_file)
@@ -438,6 +613,11 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
         # print(p.text)
         p.drop_tag()
 
+    # strip all unnecessary white space
+    for td in tree.xpath('//table//td'):
+        if td.text is not None:
+            td.text = td.text.strip()
+
     # remove li tags in td elements
     for li in tree.xpath('//td/li'):
         li.drop_tag()
@@ -446,9 +626,13 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
         # For each element with a class attribute, remove that class attribute
         tag.attrib.pop('class')
 
-    # remove sup/sub tags in unordered list candidates
+    # remove sup/sub tags in unordered list candidates and for non footnote candidates
     for sup in tree.xpath('//*[self:: sup or self::sub]'):
-        if any(list(reg.fullmatch(sup.text) for reg in regUnorderedList)):
+        if sup.text is None:
+            sup.drop_tag()
+        elif any(list(reg.fullmatch(sup.text) for reg in regUnorderedList)):
+            sup.drop_tag()
+        elif not any(list(reg.fullmatch(sup.text) for reg in regFootnote)):
             sup.drop_tag()
 
     # execute only if a formatted html file is used (ABBYY export formatted file)
@@ -479,14 +663,18 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     )
     tree = cleaner.clean_html(tree)
 
-                        ############
-                        # BUILD UI #
-                        ############
+    ############
+    # BUILD UI #
+    ############
 
     # MASTER WINDOW
     tk.title('CoCo PreProcessor UI')
-    masterLabel = Label(tk, text='Double Click to copy')
-    masterLabel.pack(side='top')
+    frameTop = Frame(tk, height=3)
+    frameTop.pack(side='top', fill='x')
+    masterLabel = Label(frameTop,
+                        text='Double Click on list entry to copy to clipboard\nSingle Click to fix in yellow entry box. ENTER to confirm changes!',
+                        width=55, font=('Arial', 10, 'bold'))
+    masterLabel.pack(side='left')
 
     # FRAME 1
     frameNumbers = Frame(tk, width=25, height=50)
@@ -554,14 +742,19 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     ckbEmptyRows = Checkbutton(frameChecks, anchor='w', text='remove empty rows', variable=fRemoveEmptyRows)
     ckbWords = Checkbutton(frameChecks, anchor='w', text='replace fixed words', variable=fReplaceWords)
     ckbNumbers = Checkbutton(frameChecks, anchor='w', text='replace fixed numbers', variable=fReplaceNumbers)
+    ckbVertMerge = Checkbutton(frameChecks, anchor='w', text='vertically merge tables (§§)',
+                               variable=fMergeTablesVertically)
     ckbSpanHeaders = Checkbutton(frameChecks, anchor='w', text='analyze heading (BETA)', variable=fSpanHeaders)
+    ckbRenamePics = Checkbutton(frameChecks, anchor='w', text='rename .png to .jpg', variable=fRenamePictures)
 
     ckbHeaders.pack(side='top', anchor='w')
     ckbFootnotes.pack(side='top', anchor='w')
     ckbEmptyRows.pack(side='top', anchor='w')
     ckbWords.pack(side='top', anchor='w')
     ckbNumbers.pack(side='top', anchor='w')
+    ckbVertMerge.pack(side='top', anchor='w')
     ckbSpanHeaders.pack(side='top', anchor='w')
+    ckbRenamePics.pack(side='top', anchor='w')
 
     # Sup check button
     labelCkb = Label(frameChecks, text='\nSuperscript elements')
@@ -574,9 +767,9 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     entryCkb.insert(0, ', '.join(lSupElements))
     entryCkb.pack(side='left')
 
-    buttonGenerate = Button(frameChecks, height=3, width=20, bd=2, fg='white', font=('Arial', 15), text='GENERATE FILE \n AND QUIT', command= partial(generate_file, entryCkb), bg='dark green')
+    buttonGenerate = Button(frameChecks, height=3, width=20, bd=2, fg='white', font=('Arial', 15),
+                            text='GENERATE FILE \n AND QUIT', command=partial(generate_file, entryCkb), bg='dark green')
     buttonGenerate.pack(side='bottom')
     tk.mainloop()
 
 os.remove('tmp.htm')  # remove original
-
