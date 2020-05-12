@@ -62,7 +62,7 @@ regHeaderContent = [
 ]
 
 regUnorderedList = [
-    re.compile('^\s*?[►•■\-□^→]\s?', re.MULTILINE)
+    re.compile('^\s*?[►•·■\-□^→]\s?', re.MULTILINE)
 ]
 
 regFalseWords = [
