@@ -581,7 +581,7 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     # replace </p><p> in tables with <br>
     # takes the longest, might find better alternative
     for td in tree.xpath('//td[count(p)>1]'):
-        i = 0;
+        i = 0
         x = len(td)
         for p in range(x):
             i += 1
@@ -735,6 +735,8 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
                                variable=fMergeTablesVertically)
     ckbSpanHeaders = Checkbutton(frameChecks, anchor='w', text='analyze heading (BETA)', variable=fSpanHeaders)
     ckbRenamePics = Checkbutton(frameChecks, anchor='w', text='rename .png to .jpg', variable=fRenamePictures)
+    keepConsoleOpenOnError = BooleanVar(value=0)
+    ckbKeepConsoleOpenOnError = Checkbutton(frameChecks, anchor='w', text='keep console open on error', variable=keepConsoleOpenOnError)
 
     ckbHeaders.pack(side='top', anchor='w')
     ckbFootnotes.pack(side='top', anchor='w')
@@ -744,6 +746,7 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     ckbVertMerge.pack(side='top', anchor='w')
     ckbSpanHeaders.pack(side='top', anchor='w')
     ckbRenamePics.pack(side='top', anchor='w')
+    ckbKeepConsoleOpenOnError.pack(side='top', anchor='w')
 
     # Sup check button
     labelCkb = Label(frameChecks, text='\nSuperscript elements')
@@ -762,3 +765,6 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     tk.mainloop()
 
 os.remove('tmp.htm')  # remove original
+
+if keepConsoleOpenOnError.get():
+    input('Fix displayed errors and press ENTER to quit!')
