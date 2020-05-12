@@ -305,8 +305,6 @@ def get_false_Words(lAllFalseWordMatches):
 
 # sets header according to regex matches and empty first column cells
 fSetHeaders = BooleanVar(value=1)
-
-
 def set_headers():
     # set table headers row for row
     leStandardTables = tree.xpath('//table[not(@class="footnote")]')
@@ -360,8 +358,6 @@ def set_headers():
 
 # set all unordered list elements according to regex matches, only for > 1 matches
 fSetUnorderedList = BooleanVar(value=1)
-
-
 def set_unordered_list():
     # find and set unordered lists
     leDashCandidates = []
@@ -388,8 +384,6 @@ def set_unordered_list():
 
 # remove empty rows
 fRemoveEmptyRows = BooleanVar(value=1)
-
-
 def remove_empty_rows():
     # remove empty table rows
     for row in tree.xpath('//tr[* and not(*[node()])]'):
@@ -398,8 +392,6 @@ def remove_empty_rows():
 
 # merge marked tables vertically
 fMergeTablesVertically = BooleanVar(value=1)
-
-
 def merge_tables_vertically():
     leMergeTables = tree.xpath(
         '//table[tr[1]/td[1][starts-with(normalize-space(text()),"§§")] or tr[last()]/td[last()][starts-with(normalize-space(text()),"§§")]]')
@@ -482,8 +474,6 @@ def merge_tables_vertically():
 
 
 fSupElements = BooleanVar(value=0)
-
-
 def sup_elements(path, entry):
     with open(path, 'r', encoding='UTF-8') as fi, open('temp.htm', 'w', encoding='UTF-8') as fo:
         rawText = fi.read()
@@ -508,20 +498,19 @@ def set_span_headers(lSpanHeaders):
 
 
 fRenamePictures = BooleanVar(value=1)
-
-
 def rename_pictures():
     picFolder = os.path.splitext(tk.filename)[0] + '_files'
-    for filename in os.listdir(picFolder):
-        base_file, ext = os.path.splitext(filename)
-        if ext == ".png":
-            # rename reference in htm file
-            # get 'img' tag
-            ePngPic = tree.xpath('//img[@src="' + os.path.basename(picFolder) + '/' + filename + '"]')
-            # rename attribute "src"
-            ePngPic[0].attrib['src'] = os.path.basename(picFolder) + '/' + base_file + '.jpg'
-            # rename picture file
-            os.rename(picFolder + '/' + filename, picFolder + '/' + base_file + ".jpg")
+    if os.path.exists(picFolder):
+        for filename in os.listdir(picFolder):
+            base_file, ext = os.path.splitext(filename)
+            if ext == ".png":
+                # rename reference in htm file
+                # get 'img' tag
+                ePngPic = tree.xpath('//img[@src="' + os.path.basename(picFolder) + '/' + filename + '"]')
+                # rename attribute "src"
+                ePngPic[0].attrib['src'] = os.path.basename(picFolder) + '/' + base_file + '.jpg'
+                # rename picture file
+                os.rename(picFolder + '/' + filename, picFolder + '/' + base_file + ".jpg")
 
 
 # generate htm file
