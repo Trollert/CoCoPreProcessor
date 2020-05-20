@@ -12,7 +12,6 @@ currentDirectory = os.getcwd()
 for file in url:
     basename = os.path.basename(urlparse(file).path)
     urlretrieve(file, filename=currentDirectory + '/' + basename)
-    # urlretrieve(allowedWords, filename=currentDirectory + '/allowed_words.txt')
 
 if not os.path.exists(currentDirectory + '/user_words.txt'):
     open(currentDirectory + '/user_words.txt', 'a').close()
