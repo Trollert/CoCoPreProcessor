@@ -5,8 +5,8 @@ from urllib.parse import urlparse
 url = ['https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/CoCoPreProcessorUI.py',
        'https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/allowed_words.txt',
        'https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/functions.py',
-       'https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/global_vars.txt',
-       'https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/patterns.txt',
+       'https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/global_vars.py',
+       'https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/patterns.py',
        'https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/update_script.py']
 currentDirectory = os.getcwd()
 for file in url:
