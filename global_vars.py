@@ -5,9 +5,6 @@ lAllFalseWordMatches = []
 lFalseNumberMatches = []
 leSpanHeaders = []
 
-# global flags
-bFoundError = False
-
 # global tkinter vars
 tk = Tk()
 fIsFondsReport = BooleanVar(value=0)
@@ -25,3 +22,6 @@ fSupElements = BooleanVar(value=0)
 fRemoveEmptyRows = BooleanVar(value=1)
 fFixTsdSeparators = BooleanVar(value=1)
 fBreakFondsTable = BooleanVar(value=1)
+
+# global flags
+bFoundError = BooleanVar(value=0)

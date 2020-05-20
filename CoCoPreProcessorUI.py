@@ -1,7 +1,7 @@
 import sys
 from functions import *
 from functools import partial
-from global_vars import tk
+from global_vars import tk, bFoundError
 from tkinter import filedialog, Listbox, Label, Scrollbar, Frame, Entry, Button, Checkbutton
 from lxml import html
 
@@ -188,5 +188,5 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     tk.mainloop()
 
 os.remove('tmp.htm')  # remove original
-if bFoundError:
+if bFoundError.get():
     input('Fix displayed errors and press ENTER to quit!')

@@ -1,4 +1,4 @@
-from lxml import html, etree
+from lxml import etree
 from lxml.html.clean import Cleaner
 from textwrap import wrap as text_wrap
 # from CoCoPreProcessorUI import tree
@@ -268,7 +268,6 @@ def remove_empty_rows(tree):
 # merge marked tables vertically
 
 def merge_tables_vertically(tree):
-    global bFoundError
     leMergeTables = tree.xpath(
         '//table[tr[1]/td[1][starts-with(normalize-space(text()),"§§")] or tr[last()]/td[last()][starts-with(normalize-space(text()),"§§")]]')
     leToMerge = []
@@ -289,7 +288,7 @@ def merge_tables_vertically(tree):
                                                                                                                   'and end marker: ' + str(
                         table.xpath('./tr[last()]/td[last()]/text()')))
                     fContinuedMerge = False
-                    bFoundError = True
+                    bFoundError.set(value=1)
                     continue
                 else:
                     leToMerge.append(table)
@@ -303,14 +302,14 @@ def merge_tables_vertically(tree):
                 print('Error in start marker position! Check the markers in ABBYY!\n'
                       'Error found in table with start marker: ' + str(table.xpath('./tr[1]/td[1]/text()')))
                 fContinuedMerge = False
-                bFoundError = True
+                bFoundError.set(value=1)
                 continue
             else:
                 leToMerge.append(table)
                 fContinuedMerge = False
         else:
             print('No markers detected, this shouldnt happen, report this bug!')
-            bFoundError = True
+            bFoundError.set(value=1)
             break
         # next table included in merge?
         # if not merge collected tables
@@ -349,7 +348,7 @@ def merge_tables_vertically(tree):
                     'You try to merge tables with different amount of table columns. Fix this in ABBYY or CoCo! Tables will not be merged!')
                 print('Table end marker: ' + str(leToMerge[0].xpath('./tr[last()]/td[last()]/text()')))
                 print(iColNumbers)
-                bFoundError = True
+                bFoundError.set(value=1)
             leToMerge = []
 
 
@@ -410,7 +409,6 @@ def fix_tsd_separators(tree, decSeparator):
 
 
 def break_fonds_table(tree):
-    global bFoundError
     eFondsTable = tree.xpath(
         '/html/body/*[starts-with(normalize-space(text()),"Vermögensaufstellung")]/following-sibling::table[1]')
     for table in eFondsTable:
@@ -430,10 +428,6 @@ def break_fonds_table(tree):
                     brTag = etree.Element('br')
                     brTag.tail = tail
                     cell.insert(0, brTag)
-            elif len(cell):
-                print('You have <sup>-elements in your Vermögensaufstellungs-Table. As of now, its not possible to '
-                      'break this cell. It will be fixed in the future when i have time.')
-                bFoundError = True
         for cell in leHeaderCells:
             if cell.text is not None:
                 lsWrap = text_wrap(cell.text, width=3, break_long_words=False)
