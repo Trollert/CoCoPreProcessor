@@ -11,7 +11,6 @@ url = ['https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/CoCoP
 currentDirectory = os.getcwd()
 for file in url:
     basename = os.path.basename(urlparse(file).path)
-    print(basename)
     urlretrieve(file, filename=currentDirectory + '/' + basename)
     # urlretrieve(allowedWords, filename=currentDirectory + '/allowed_words.txt')
 
