@@ -1,9 +1,19 @@
 import os
-import urllib.request
+from urllib.request import urlretrieve
+from urllib.parse import urlparse
 
-url = 'https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/CoCoPreProcessorUI.py'
-allowedWords = 'https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/allowed_words.txt'
+url = ['https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/CoCoPreProcessorUI.py',
+       'https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/allowed_words.txt',
+       'https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/functions.py',
+       'https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/global_vars.txt',
+       'https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/patterns.txt',
+       'https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/update_script.py']
 currentDirectory = os.getcwd()
-urllib.request.urlretrieve(url, filename=currentDirectory + '/CoCoPreProcessorUI.py')
-if not os.path.exists(currentDirectory + '/allowed_words.txt'):
-    urllib.request.urlretrieve(allowedWords, filename=currentDirectory + '/allowed_words.txt')
+for file in url:
+    basename = os.path.basename(urlparse(file).path)
+    print(basename)
+    urlretrieve(file, filename=currentDirectory + '/' + basename)
+    # urlretrieve(allowedWords, filename=currentDirectory + '/allowed_words.txt')
+
+if not os.path.exists(currentDirectory + '/user_words.txt'):
+    open(currentDirectory + '/user_words.txt', 'a').close()
