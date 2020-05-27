@@ -32,3 +32,4 @@ lfFunctCalls = []
 
 # global flags
 bFoundError = BooleanVar(value=0)
+bUpToDate = True

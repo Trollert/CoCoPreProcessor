@@ -4,18 +4,41 @@ import os
 from functools import partial
 from tkinter import filedialog, Listbox, Label, Scrollbar, Frame, Entry, Button, Checkbutton
 from lxml import html
+from urllib.request import urlopen, urlretrieve
+import configparser
 
+# custom imports
 from functions import listbox_copy, set_list, get_list, replace_word_list, replace_number_list, set_footnote_tables, get_false_Words, get_false_Numbers, set_headers, set_unordered_list, remove_empty_rows, merge_tables_vertically,sup_elements, set_span_headers, rename_pictures, fix_tsd_separators, break_fonds_table, wrap, first_cleanse
 from patterns import lSupElements
 import global_vars
 
+# read config file, create if not found
+Config = configparser.ConfigParser()
+if os.path.exists(os.getcwd() + '/preproc_config.ini'):
+    Config.read('preproc_config.ini')
+    workingFolder = Config['PATHS']['working_dir']
+    _version_ = Config['VERSION']['pre_proc_version']
+    _current_version_ = urlopen('https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/_version_.txt').read().decode('utf-8')
+    if _version_ is not _current_version_:
+        global_vars.bUpToDate = False
+else:
+    print('No config file found, update script with update_script.py and restart'
+          ' CoCoPreProcessorUI.py before proceeding! This message will still appear though, so dont get confused')
+    urlretrieve('https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/update_script.py', filename=os.getcwd() + '/update_script.py')
+    Config['PATHS'] = {}
+    Config['PATHS']['working_dir'] = filedialog.askdirectory(title='Choose the directory to open when using CoCo-PreProcessor!')
+    workingFolder = Config['PATHS']['working_dir']
+    Config['VERSION'] = {}
+    Config['VERSION']['pre_proc_version'] = urlopen('https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/_version_.txt').read().decode('utf-8')
+    with open(os.getcwd() + '/preproc_config.ini', 'w') as configfile:
+        Config.write(configfile)
 
 
 #####################
 #     OPEN FILE     #
 #####################
 if len(sys.argv) < 2:
-    global_vars.tk.filename = filedialog.askopenfilename(initialdir=r"C:\Users\blank\Desktop\XML", title="Select file",
+    global_vars.tk.filename = filedialog.askopenfilename(initialdir=workingFolder, title="Select file",
                                              filetypes=(("HTML files", "*.htm"), ("all files", "*.*")))
     global_vars.current_path = os.path.dirname(global_vars.tk.filename)
 else:
