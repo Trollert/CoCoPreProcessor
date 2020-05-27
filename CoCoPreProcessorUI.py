@@ -1,27 +1,34 @@
 import sys
-from functions import *
+import re
+import os
 from functools import partial
-from global_vars import tk, bFoundError
 from tkinter import filedialog, Listbox, Label, Scrollbar, Frame, Entry, Button, Checkbutton
 from lxml import html
 
-    #####################
-    #     OPEN FILE     #
-    #####################
+from functions import listbox_copy, set_list, get_list, replace_word_list, replace_number_list, set_footnote_tables, get_false_Words, get_false_Numbers, set_headers, set_unordered_list, remove_empty_rows, merge_tables_vertically,sup_elements, set_span_headers, rename_pictures, fix_tsd_separators, break_fonds_table, wrap, first_cleanse
+from patterns import lSupElements
+import global_vars
 
 
+
+#####################
+#     OPEN FILE     #
+#####################
 if len(sys.argv) < 2:
-    tk.filename = filedialog.askopenfilename(initialdir=r"C:\Users\blank\Desktop\XML", title="Select file",
+    global_vars.tk.filename = filedialog.askopenfilename(initialdir=r"C:\Users\blank\Desktop\XML", title="Select file",
                                              filetypes=(("HTML files", "*.htm"), ("all files", "*.*")))
+    global_vars.current_path = os.path.dirname(global_vars.tk.filename)
 else:
-    tk.filename = sys.argv[1]
+    global_vars.tk.filename = sys.argv[1]
 
 # open the file as string, to replace tag-based substrings
 # much easier to do before parsing html
-with open(tk.filename, 'r', encoding='UTF-8') as fi, \
+with open(global_vars.tk.filename, 'r', encoding='UTF-8') as fi, \
         open('tmp.htm', 'w', encoding='UTF-8') as fo:
     new_str = fi.read()
     new = new_str.replace('CO2', 'CO<sub>2</sub>')  # replaces every occurrence of CO2
+
+    new = new.replace('—', '-')  # replaces en dash with normal dash
     new = new.replace('\u2013', '-')  # replaces en dash with normal dash
     new = new.replace('\xa0', ' ')  # replaces non breaking spaces
     # REMOVE WRONG LINE BREAK HERE BECAUSE I CANT FIGURE OUT HOW TO DO IT WITHIN THE PARSER
@@ -35,49 +42,50 @@ with open(tk.filename, 'r', encoding='UTF-8') as fi, \
 
 
 def generate_file(tree, entryCkb):
-    if fRemoveEmptyRows.get():
+    if global_vars.fRemoveEmptyRows.get():
         remove_empty_rows(tree)
-    if fMergeTablesVertically.get():
+    if global_vars.fMergeTablesVertically.get():
         merge_tables_vertically(tree)
-    if fSetUnorderedList.get():
+    if global_vars.fReplaceNumbers.get():
+        replace_number_list(tree, listboxNumbers, global_vars.current_path)
+    if global_vars.fReplaceWords.get():
+        replace_word_list(tree, listboxWords, global_vars.current_path)
+    if global_vars.fSetUnorderedList.get():
         set_unordered_list(tree)
-    if fFootnotetables.get():
+    if global_vars.fFootnotetables.get():
         set_footnote_tables(tree)
-    if fReplaceNumbers.get():
-        replace_number_list(tree, listboxNumbers)
-    if fReplaceWords.get():
-        replace_word_list(tree, listboxWords)
     # if fSplitRowSpan.get():
     #     split_rowspan()
-    if fSpanHeaders.get():
-        set_span_headers(tree, leSpanHeaders)
-    if fSetHeaders.get():
+    if global_vars.fSpanHeaders.get():
+        set_span_headers(tree, global_vars.leSpanHeaders)
+    if global_vars.fSetHeaders.get():
         set_headers(tree)
-    if fIsFondsReport.get():
-        if fFixTsdSeparators.get():
+    if global_vars.fIsFondsReport.get():
+        if global_vars.fFixTsdSeparators.get():
             fix_tsd_separators(tree, ',')
-        if fBreakFondsTable.get():
+        if global_vars.fBreakFondsTable.get():
             break_fonds_table(tree)
-    if fRenamePictures.get():
+    if global_vars.fRenamePictures.get():
         rename_pictures(tree)
     # wrap all table contents in p-tags
     # wrap(tree, "p")
     # write to new file in source folder
-    tree.write(os.path.splitext(tk.filename)[0] + '_modified.htm', encoding='UTF-8', method='html')
-    if fSupElements.get():
-        sup_elements(os.path.splitext(tk.filename)[0] + '_modified.htm', entryCkb)
-    tk.destroy()
+    tree.write(os.path.splitext(global_vars.tk.filename)[0] + '_modified.htm', encoding='UTF-8', method='html')
+    if global_vars.fSupElements.get():
+        sup_elements(os.path.splitext(global_vars.tk.filename)[0] + '_modified.htm', entryCkb)
+    global_vars.tk.destroy()
+
 
 with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     tree = html.parse(input_file)
-    tree = parse_and_clean(tree)
+    tree = first_cleanse(tree)
     ############
     # BUILD UI #
     ############
 
     # MASTER WINDOW
-    tk.title('CoCo PreProcessor UI')
-    frameTop = Frame(tk, height=3)
+    global_vars.tk.title('CoCo PreProcessor UI')
+    frameTop = Frame(global_vars.tk, height=3)
     frameTop.pack(side='top', fill='x')
     masterLabel = Label(frameTop,
                         text='Double Click on list entry to copy to clipboard\n'
@@ -86,7 +94,7 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     masterLabel.pack(side='left')
 
     # FRAME 1
-    frameNumbers = Frame(tk, width=25, height=50)
+    frameNumbers = Frame(global_vars.tk, width=25, height=50)
     frameLbNumbers = Frame(frameNumbers, width=45, height=48)
     frameLbNumbers.pack(side='bottom')
     frameNumbers.pack(fill='y', side='left')
@@ -101,9 +109,9 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     scrollbarNumbers.pack(side="left", fill="y")
     # CONFIG 1
     listboxNumbers.config(yscrollcommand=scrollbarNumbers.set)
-    get_false_Numbers(tree, lFalseNumberMatches)
-    for e in range(len(lFalseNumberMatches)):
-        listboxNumbers.insert(e, lFalseNumberMatches[e])
+    get_false_Numbers(tree, global_vars.current_path)
+    for e in range(len(global_vars.lFalseNumberMatches)):
+        listboxNumbers.insert(e, global_vars.lFalseNumberMatches[e])
     # ENTRY BOX NUMBERS
     # use entry widget to display/edit selection
     entryNumbers = Entry(frameNumbers, width=25, bg='yellow')
@@ -114,7 +122,7 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     entryNumbers.focus_force()
 
     # FRAME 2
-    frameWords = Frame(tk, width=50, height=50)
+    frameWords = Frame(global_vars.tk, width=50, height=50)
     frameLbWords = Frame(frameWords, width=45, height=48)
     frameLbWords.pack(side='bottom')
     frameWords.pack(fill='y', side='left')
@@ -128,9 +136,9 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     scrollbarWords.pack(side="left", fill="y")
     # CONFIG 2
     listboxWords.config(yscrollcommand=scrollbarWords.set)
-    lAllFalseWordMatches = get_false_Words(tree)
-    for e in range(len(lAllFalseWordMatches)):
-        listboxWords.insert(e, lAllFalseWordMatches[e])
+    get_false_Words(tree, global_vars.current_path)
+    for e in range(len(global_vars.lAllFalseWordMatches)):
+        listboxWords.insert(e, global_vars.lAllFalseWordMatches[e])
 
     # ENTRY BOX WORDS
     # use entry widget to display/edit selection
@@ -144,17 +152,17 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     # buttonWords.pack(side='top')
 
     # FRAME 3
-    frameChecks = Frame(tk, width=25, height=50)
+    frameChecks = Frame(global_vars.tk, width=25, height=50)
     frameChecks.pack(fill='y', side='left')
-    ckbHeaders = Checkbutton(frameChecks, anchor='w', text='convert headers', variable=fSetHeaders)
-    ckbFootnotes = Checkbutton(frameChecks, anchor='w', text='convert footnotes', variable=fFootnotetables)
-    ckbEmptyRows = Checkbutton(frameChecks, anchor='w', text='remove empty rows', variable=fRemoveEmptyRows)
-    ckbWords = Checkbutton(frameChecks, anchor='w', text='replace fixed words', variable=fReplaceWords)
-    ckbNumbers = Checkbutton(frameChecks, anchor='w', text='replace fixed numbers', variable=fReplaceNumbers)
+    ckbHeaders = Checkbutton(frameChecks, anchor='w', text='convert headers', variable=global_vars.fSetHeaders)
+    ckbFootnotes = Checkbutton(frameChecks, anchor='w', text='convert footnotes', variable=global_vars.fFootnotetables)
+    ckbEmptyRows = Checkbutton(frameChecks, anchor='w', text='remove empty rows', variable=global_vars.fRemoveEmptyRows)
+    ckbWords = Checkbutton(frameChecks, anchor='w', text='replace fixed words', variable=global_vars.fReplaceWords)
+    ckbNumbers = Checkbutton(frameChecks, anchor='w', text='replace fixed numbers', variable=global_vars.fReplaceNumbers)
     ckbVertMerge = Checkbutton(frameChecks, anchor='w', text='vertically merge tables (§§)',
-                               variable=fMergeTablesVertically)
-    ckbSpanHeaders = Checkbutton(frameChecks, anchor='w', text='analyze heading (BETA)', variable=fSpanHeaders)
-    ckbRenamePics = Checkbutton(frameChecks, anchor='w', text='rename .png to .jpg', variable=fRenamePictures)
+                               variable=global_vars.fMergeTablesVertically)
+    ckbSpanHeaders = Checkbutton(frameChecks, anchor='w', text='analyze heading (BETA)', variable=global_vars.fSpanHeaders)
+    ckbRenamePics = Checkbutton(frameChecks, anchor='w', text='rename .png to .jpg', variable=global_vars.fRenamePictures)
 
     ckbHeaders.pack(side='top', anchor='w')
     ckbFootnotes.pack(side='top', anchor='w')
@@ -170,23 +178,25 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     labelCkb.pack(side='top', anchor='w')
     frameCkb = Frame(frameChecks, width=25, height=5)
     frameCkb.pack(side='top')
-    ckbSup = Checkbutton(frameCkb, anchor='w', variable=fSupElements)
+    ckbSup = Checkbutton(frameCkb, anchor='w', variable=global_vars.fSupElements)
     ckbSup.pack(side='left', anchor='w')
     entryCkb = Entry(frameCkb, width=23, )
     entryCkb.insert(0, ', '.join(lSupElements))
     entryCkb.pack(side='left')
 
-    if fIsFondsReport.get():
-        ckbTsdFix = Checkbutton(frameChecks, anchor='w', text='fix tsd separators', variable=fFixTsdSeparators)
-        ckbBreakFondsTable = Checkbutton(frameChecks, anchor='w', text='break Vermögensaufstellung', variable=fBreakFondsTable)
+    if global_vars.fIsFondsReport.get():
+        ckbTsdFix = Checkbutton(frameChecks, anchor='w', text='fix tsd separators', variable=global_vars.fFixTsdSeparators)
+        ckbBreakFondsTable = Checkbutton(frameChecks, anchor='w', text='break Vermögensaufstellung',
+                                         variable=global_vars.fBreakFondsTable)
         ckbTsdFix.pack(side='top', anchor='w')
         ckbBreakFondsTable.pack(side='top', anchor='w')
 
     buttonGenerate = Button(frameChecks, height=3, width=20, bd=2, fg='white', font=('Arial', 15),
-                            text='GENERATE FILE \n AND QUIT', command=partial(generate_file, tree, entryCkb), bg='dark green')
+                            text='GENERATE FILE \n AND QUIT', command=partial(generate_file, tree, entryCkb),
+                            bg='dark green')
     buttonGenerate.pack(side='bottom')
-    tk.mainloop()
+    global_vars.tk.mainloop()
 
 os.remove('tmp.htm')  # remove original
-if bFoundError.get():
+if global_vars.bFoundError.get():
     input('Fix displayed errors and press ENTER to quit!')

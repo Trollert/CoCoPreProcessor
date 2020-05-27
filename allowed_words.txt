@@ -20,3 +20,7 @@ Ad-hoc
 ApS
 at-equity
 GbR
+RfB
+DekaBank
+BlackRock
+DekaStruktur

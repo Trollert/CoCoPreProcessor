@@ -1,8 +1,10 @@
+import pickle
+
 from lxml import etree
 from lxml.html.clean import Cleaner
 from textwrap import wrap as text_wrap
 # from CoCoPreProcessorUI import tree
-from global_vars import *
+import global_vars
 from patterns import *
 import os
 
@@ -12,10 +14,10 @@ import os
 
 # UI for number checks
 def listbox_copy(lb):
-    tk.clipboard_clear()
+    global_vars.tk.clipboard_clear()
     w = lb.widget
     selected = int(w.curselection()[0])
-    tk.clipboard_append(w.get(selected))
+    global_vars.tk.clipboard_append(w.get(selected))
 
 
 def set_list(list, entry, event):
@@ -54,43 +56,67 @@ def get_list(list, entry, event):
 # OPTIONAL FUNCTIONS #
 ######################
 
-def replace_word_list(tree, listbox):
+def replace_word_list(tree, listbox, path):
     """
     replace the corrected listbox items with their counterparts
     """
-    global lAllFalseWordMatches
+
     leTextElements = tree.xpath('.//*[normalize-space(text())]')
     # get a list of listbox lines
-    temp_list = list(listbox.get(0, 'end'))
-    tempAllFalseWords = lAllFalseWordMatches
+    corrected_list = list(listbox.get(0, 'end'))
+
+    # create duplicate to not create confusion while popping
+    tempAllFalseWords = global_vars.lAllFalseWordMatches
+
+    #remove unaffected entries from both lists
     for idx in reversed(range(len(tempAllFalseWords))):
-        if tempAllFalseWords[idx] == temp_list[idx]:
+        if tempAllFalseWords[idx] == corrected_list[idx]:
             tempAllFalseWords.pop(idx)
-            temp_list.pop(idx)
+            corrected_list.pop(idx)
+
+    # create file to safe already replaced words in case of error
+    save_dict = dict(zip(tempAllFalseWords, corrected_list))
+    if os.path.exists(path + '/save_words.pkl'):
+        save_file = open(path + '/save_words.pkl', 'rb')
+        old_dict = pickle.load(save_file)
+        save_dict = {**old_dict, **save_dict}
+        save_file.close()
+    save_file = open(path + '/save_words.pkl', 'wb')
+    pickle.dump(save_dict, save_file)
+    save_file.close()
 
     for e in leTextElements:
-        for repEl in range(len(temp_list)):
+        for repEl in range(len(corrected_list)):
             if e.text:
-                e.text = e.text.replace(tempAllFalseWords[repEl], temp_list[repEl])
-    return lAllFalseWordMatches
+                e.text = e.text.replace(tempAllFalseWords[repEl], corrected_list[repEl])
 
 
-def replace_number_list(tree, listbox):
+def replace_number_list(tree, listbox, path):
     leNumberElements = tree.xpath('//table[not(@class="footnote")]/tr/td[normalize-space(text())]')
     # get a list of listbox lines
     temp_list = list(listbox.get(0, 'end'))
-    tempAllfalseNumbers = lFalseNumberMatches
-    # print(lFalseNumberMatches)
+    tempAllfalseNumbers = global_vars.lFalseNumberMatches
+
     for idx in reversed(range(len(tempAllfalseNumbers))):
         if tempAllfalseNumbers[idx] == temp_list[idx]:
             tempAllfalseNumbers.pop(idx)
             temp_list.pop(idx)
 
+    # create file to safe already replaced numbers in case of error
+    save_dict = dict(zip(tempAllfalseNumbers, temp_list))
+    if os.path.exists(path + '/save_numbers.pkl'):
+        save_file = open(path + '/save_numbers.pkl', 'rb')
+        old_dict = pickle.load(save_file)
+        save_dict = {**old_dict, **save_dict}
+        save_file.close()
+    save_file = open(path + '/save_numbers.pkl', 'wb')
+    pickle.dump(save_dict, save_file)
+    save_file.close()
+
     for e in leNumberElements:
         for repEl in range(len(temp_list)):
             if e.text:
                 e.text = e.text.replace(tempAllfalseNumbers[repEl], temp_list[repEl])
-    return lFalseNumberMatches
 
 def set_footnote_tables(tree):
     leAllTables = tree.xpath('//table')
@@ -128,10 +154,21 @@ def set_footnote_tables(tree):
             lbFootnoteMatches.clear()
 
 
-def get_false_Numbers(tree, lFalseNumberMatches):
+def get_false_Numbers(tree, path):
     # check numbers in table cells
     # get all tables that are not footnote tables
     leStandardTables = tree.xpath('//table[not(@class="footnote")]')
+    # if save numbers file exists, replace matches before finding new ones
+    if os.path.exists(path + '/save_numbers.pkl'):
+        save_file = open(path + '/save_numbers.pkl', 'rb')
+        save_dict = pickle.load(save_file)
+        save_file.close()
+        for row in leStandardTables:
+            for cell in row:
+                if cell.text:
+                    for old, new in save_dict.items():
+                        cell.text = cell.text.replace(old, new)
+
     for table in leStandardTables:
         leSubtables = []
         iFormatCount = [0] * len(regNumbers)
@@ -151,22 +188,30 @@ def get_false_Numbers(tree, lFalseNumberMatches):
                 if sum(cell_format):
                     iFormatCount = [a + b for a, b in zip(iFormatCount, cell_format)]
                 elif cell.text is not None:
-                    if fFixNumbers.get():
+                    if global_vars.fFixNumbers.get():
                         if cell.find('br') is not None and re.fullmatch('[0-9,. -]*', cell.text):
                             cell.find('br').drop_tag()
                             if any(list(reg.fullmatch(re.sub(r'\s+', '', cell.text)) for reg in regNumbers[0:4])):
                                 cell.text = re.sub(r'\s+', '', cell.text)
                         else:
-                            lFalseNumberMatches.append(cell.text)
+                            global_vars.lFalseNumberMatches.append(cell.text)
                     else:
-                        lFalseNumberMatches.append(cell.text)
-    return lFalseNumberMatches
+                        global_vars.lFalseNumberMatches.append(cell.text)
 
-def get_false_Words(tree):
+def get_false_Words(tree, path):
     # check false word separations
     # get all elements that contain text (p/h1/h2/h3/td)
-    global lAllFalseWordMatches
+    # global lAllFalseWordMatches
+    lAll = []
     leTextElements = tree.xpath('.//*[normalize-space(text())]')
+    if os.path.exists(path + '/save_words.pkl'):
+        save_file = open(path + '/save_words.pkl', 'rb')
+        save_dict = pickle.load(save_file)
+        save_file.close()
+
+        for e in leTextElements:
+            for old, new in save_dict.items():
+                e.text = e.text.replace(old, new)
     # print(textElements)
     for e in leTextElements:
         # regex match on every text element to check whether it matches a wrongfully separated word
@@ -176,9 +221,10 @@ def get_false_Words(tree):
                 lCurrentMatches = regex_match.findall(e.text)
                 if len(lCurrentMatches):
                     lCurrentMatches = [elem for elem in lCurrentMatches if elem not in lAllowedWords]
-                    lAllFalseWordMatches.extend(lCurrentMatches)
-    lAllFalseWordMatches = list(dict.fromkeys(lAllFalseWordMatches))
-    return lAllFalseWordMatches
+                    lAll.extend(lCurrentMatches)
+    global_vars.lAllFalseWordMatches = list(dict.fromkeys(lAll))
+
+
 
 def set_headers(tree):
     # set table headers row for row
@@ -288,7 +334,7 @@ def merge_tables_vertically(tree):
                                                                                                                   'and end marker: ' + str(
                         table.xpath('./tr[last()]/td[last()]/text()')))
                     fContinuedMerge = False
-                    bFoundError.set(value=1)
+                    global_vars.bFoundError.set(value=1)
                     continue
                 else:
                     leToMerge.append(table)
@@ -302,14 +348,14 @@ def merge_tables_vertically(tree):
                 print('Error in start marker position! Check the markers in ABBYY!\n'
                       'Error found in table with start marker: ' + str(table.xpath('./tr[1]/td[1]/text()')))
                 fContinuedMerge = False
-                bFoundError.set(value=1)
+                global_vars.bFoundError.set(value=1)
                 continue
             else:
                 leToMerge.append(table)
                 fContinuedMerge = False
         else:
             print('No markers detected, this shouldnt happen, report this bug!')
-            bFoundError.set(value=1)
+            global_vars.bFoundError.set(value=1)
             break
         # next table included in merge?
         # if not merge collected tables
@@ -348,7 +394,7 @@ def merge_tables_vertically(tree):
                     'You try to merge tables with different amount of table columns. Fix this in ABBYY or CoCo! Tables will not be merged!')
                 print('Table end marker: ' + str(leToMerge[0].xpath('./tr[last()]/td[last()]/text()')))
                 print(iColNumbers)
-                bFoundError.set(value=1)
+                global_vars.bFoundError.set(value=1)
             leToMerge = []
 
 
@@ -374,7 +420,7 @@ def set_span_headers(lSpanHeaders):
 
 
 def rename_pictures(tree):
-    picFolder = os.path.splitext(tk.filename)[0] + '_files'
+    picFolder = os.path.splitext(global_vars.tk.filename)[0] + '_files'
     if os.path.exists(picFolder):
         for filename in os.listdir(picFolder):
             base_file, ext = os.path.splitext(filename)
@@ -419,7 +465,7 @@ def break_fonds_table(tree):
             br.tail = ' ' + br.tail
             br.drop_tag()
         for cell in leTitleCells:
-            if cell.text is not None:
+            if cell.text:
                 lsWrap = text_wrap(cell.text, width=14, break_long_words=False)
                 cell.text = lsWrap[0]
                 # if len(cell):
@@ -429,7 +475,7 @@ def break_fonds_table(tree):
                     brTag.tail = tail
                     cell.insert(0, brTag)
         for cell in leHeaderCells:
-            if cell.text is not None:
+            if cell.text:
                 lsWrap = text_wrap(cell.text, width=3, break_long_words=False)
                 cell.text = lsWrap[0]
                 for tail in lsWrap[1:]:
@@ -457,8 +503,7 @@ def break_fonds_table(tree):
 #
 #         # for tr in table.xpath('./tr[//td[@rowspan]]'):
 
-# generate htm file
-
+# wrap table cells in p tags
 def wrap(root, tag):
     # find <td> elements that do not have a <p> element
     cells = etree.XPath("//td[not(p)]")(root)
@@ -477,7 +522,7 @@ def wrap(root, tag):
         # Set the new <p> element as the cell's child
         cell.append(e)
 
-def parse_and_clean(tree):
+def first_cleanse(tree):
 
     #################
     #  PREPARATIONS #
@@ -544,7 +589,7 @@ def parse_and_clean(tree):
 
     # check if report is a fonds report
     if tree.xpath('/html/body/*[starts-with(normalize-space(text()),"Vermögensaufstellung")]'):
-        fIsFondsReport.set(value=1)
+        global_vars.fIsFondsReport.set(value=1)
 
     # execute only if a formatted html file is used (ABBYY export formatted file)
     if tree.xpath('/html/head/style'):
@@ -557,7 +602,7 @@ def parse_and_clean(tree):
                 # check if tag contains more than one span tag
                 # if so skip it
                 if len(span) == 1:
-                    leSpanHeaders.append(span)
+                    global_vars.leSpanHeaders.append(span)
 
         for br in tree.xpath('//br[@*]'):
             br.drop_tag()
