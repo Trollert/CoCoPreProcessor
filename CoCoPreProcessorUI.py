@@ -115,6 +115,13 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
                              'Single Click to fix in yellow entry box. ENTER to confirm changes!',
                         width=55, font=('Arial', 10, 'bold'))
     masterLabel.pack(side='left')
+    if not global_vars.bUpToDate:
+        versionLabel = Label(frameTop,
+                        text='New Version available!\n'
+                             'Please update with update_script!',
+                        width=30, font=('Arial', 9, 'bold'), fg='red')
+        versionLabel.pack(side='right')
+
 
     # FRAME 1
     frameNumbers = Frame(global_vars.tk, width=25, height=50)
