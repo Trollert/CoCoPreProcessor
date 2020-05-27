@@ -23,6 +23,8 @@ if os.path.exists(global_vars.working_folder + '/preproc_config.ini'):
     _current_version_ = urlopen('https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/_version_.txt').read().decode('utf-8')
     if _version_ != _current_version_:
         global_vars.bUpToDate = False
+        urlretrieve('https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/update_script.py',
+                    filename=global_vars.working_folder + '/update_script.py')
 else:
     print('No config file found, update script with update_script.py and restart'
           ' CoCoPreProcessorUI.py before proceeding! This message will still appear though, so dont get confused')
