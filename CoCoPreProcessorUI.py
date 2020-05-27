@@ -8,7 +8,7 @@ from urllib.request import urlopen, urlretrieve
 import configparser
 
 # custom imports
-from functions import listbox_copy, set_list, get_list, replace_word_list, replace_number_list, set_footnote_tables, get_false_Words, get_false_Numbers, set_headers, set_unordered_list, remove_empty_rows, merge_tables_vertically,sup_elements, set_span_headers, rename_pictures, fix_tsd_separators, break_fonds_table, wrap, first_cleanse
+from functions import replace_word_list, replace_number_list, set_footnote_tables, get_false_Words, get_false_Numbers, set_headers, set_unordered_list, remove_empty_rows, merge_tables_vertically,sup_elements, set_span_headers, rename_pictures, fix_tsd_separators, break_fonds_table, wrap, first_cleanse
 from patterns import lSupElements
 import global_vars
 
@@ -19,8 +19,9 @@ if os.path.exists(os.getcwd() + '/preproc_config.ini'):
     workingFolder = Config['PATHS']['working_dir']
     _version_ = Config['VERSION']['pre_proc_version']
     _current_version_ = urlopen('https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/_version_.txt').read().decode('utf-8')
-    if _version_ is not _current_version_:
+    if _version_ != _current_version_:
         global_vars.bUpToDate = False
+
 else:
     print('No config file found, update script with update_script.py and restart'
           ' CoCoPreProcessorUI.py before proceeding! This message will still appear though, so dont get confused')
@@ -33,6 +34,7 @@ else:
     with open(os.getcwd() + '/preproc_config.ini', 'w') as configfile:
         Config.write(configfile)
 
+from tk_functions import listbox_copy, set_list, get_list
 
 #####################
 #     OPEN FILE     #
@@ -80,7 +82,7 @@ def generate_file(tree, entryCkb):
     # if fSplitRowSpan.get():
     #     split_rowspan()
     if global_vars.fSpanHeaders.get():
-        set_span_headers(tree, global_vars.leSpanHeaders)
+        set_span_headers(global_vars.leSpanHeaders)
     if global_vars.fSetHeaders.get():
         set_headers(tree)
     if global_vars.fIsFondsReport.get():
