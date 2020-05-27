@@ -520,7 +520,6 @@ def first_cleanse(tree):
                     i.tail = re.sub(' \)', ')', i.tail)
                     i.tail = re.sub('\)\s*?\.', ')', i.tail)
 
-
     # strip all unnecessary white space
     for td in tree.xpath('//table//td'):
         if td.text is not None:

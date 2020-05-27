@@ -65,7 +65,7 @@ regFalseWords = [
 ]
 
 # get list of allowed text elements
-lAllowedWords = open('allowed_words.txt', encoding='UTF-8').read().splitlines() + open('user_words.txt', encoding='UTF-8').read().splitlines()
+lAllowedWords = open('allowed_words.txt', encoding='UTF-8').read().splitlines() + open('user_words.txt', 'a+', encoding='UTF-8').read().splitlines()
 
 # get list of sup-always elements
 lSupElements = [

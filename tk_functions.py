@@ -1,4 +1,27 @@
 import global_vars
+from tkinter import Listbox, Menu
+
+class FancyListbox(Listbox):
+
+    def __init__(self, parent, *args, **kwargs):
+        Listbox.__init__(self, parent, *args, **kwargs)
+
+        self.popup_menu = Menu(self, tearoff=0)
+        self.popup_menu.add_command(label="Add to user words",
+                                    command=self.add_user_word)
+
+        self.bind("<Button-3>", self.popup) # Button-2 on Aqua
+
+    def popup(self, event):
+        try:
+            self.popup_menu.tk_popup(event.x_root, event.y_root, 0)
+        finally:
+            self.popup_menu.grab_release()
+
+    def add_user_word(self):
+        with open(global_vars.working_folder + '/user_words.txt', 'a', encoding='UTF-8') as f:
+            f.write(self.get(self.curselection()) + '\n')
+
 
 
 # UI for number checks

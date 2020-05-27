@@ -6,7 +6,10 @@ lFalseNumberMatches = []
 leSpanHeaders = []
 
 # current working directory
-current_path = ''
+report_path = ''
+opening_folder = ''
+working_folder = ''
+
 
 # global tkinter vars
 tk = Tk()

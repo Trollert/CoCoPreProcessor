@@ -9,29 +9,30 @@ import configparser
 
 # custom imports
 from functions import replace_word_list, replace_number_list, set_footnote_tables, get_false_Words, get_false_Numbers, set_headers, set_unordered_list, remove_empty_rows, merge_tables_vertically,sup_elements, set_span_headers, rename_pictures, fix_tsd_separators, break_fonds_table, wrap, first_cleanse
+from tk_functions import FancyListbox, listbox_copy, set_list, get_list
 from patterns import lSupElements
 import global_vars
 
 # read config file, create if not found
 Config = configparser.ConfigParser()
-if os.path.exists(os.getcwd() + '/preproc_config.ini'):
+global_vars.working_folder = os.getcwd()
+if os.path.exists(global_vars.working_folder + '/preproc_config.ini'):
     Config.read('preproc_config.ini')
-    workingFolder = Config['PATHS']['working_dir']
+    global_vars.opening_folder = Config['PATHS']['opening_dir']
     _version_ = Config['VERSION']['pre_proc_version']
     _current_version_ = urlopen('https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/_version_.txt').read().decode('utf-8')
     if _version_ != _current_version_:
         global_vars.bUpToDate = False
-
 else:
     print('No config file found, update script with update_script.py and restart'
           ' CoCoPreProcessorUI.py before proceeding! This message will still appear though, so dont get confused')
-    urlretrieve('https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/update_script.py', filename=os.getcwd() + '/update_script.py')
+    urlretrieve('https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/update_script.py', filename=global_vars.working_folder + '/update_script.py')
     Config['PATHS'] = {}
-    Config['PATHS']['working_dir'] = filedialog.askdirectory(title='Choose the directory to open when using CoCo-PreProcessor!')
-    workingFolder = Config['PATHS']['working_dir']
+    Config['PATHS']['opening_dir'] = filedialog.askdirectory(title='Choose the directory to open when using CoCo-PreProcessor!')
+    workingFolder = Config['PATHS']['opening_dir']
     Config['VERSION'] = {}
     Config['VERSION']['pre_proc_version'] = urlopen('https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/_version_.txt').read().decode('utf-8')
-    with open(os.getcwd() + '/preproc_config.ini', 'w') as configfile:
+    with open(global_vars.working_folder + '/preproc_config.ini', 'w') as configfile:
         Config.write(configfile)
 
 from tk_functions import listbox_copy, set_list, get_list
@@ -40,9 +41,9 @@ from tk_functions import listbox_copy, set_list, get_list
 #     OPEN FILE     #
 #####################
 if len(sys.argv) < 2:
-    global_vars.tk.filename = filedialog.askopenfilename(initialdir=workingFolder, title="Select file",
-                                             filetypes=(("HTML files", "*.htm"), ("all files", "*.*")))
-    global_vars.current_path = os.path.dirname(global_vars.tk.filename)
+    global_vars.tk.filename = filedialog.askopenfilename(initialdir=global_vars.opening_folder, title="Select file",
+                                                         filetypes=(("HTML files", "*.htm"), ("all files", "*.*")))
+    global_vars.report_path = os.path.dirname(global_vars.tk.filename)
 else:
     global_vars.tk.filename = sys.argv[1]
 
@@ -55,7 +56,7 @@ with open(global_vars.tk.filename, 'r', encoding='UTF-8') as fi, \
 
     new = new.replace('—', '-')  # replaces en dash with normal dash
     new = new.replace('\u2013', '-')  # replaces en dash with normal dash
-    new = new.replace('\xa0', ' ')  # replaces non breaking spaces
+    new = new.replace('&nbsp;', ' ')  # replaces non breaking spaces
     # REMOVE WRONG LINE BREAK HERE BECAUSE I CANT FIGURE OUT HOW TO DO IT WITHIN THE PARSER
     new = re.sub(r"(?sm)(?<=[a-zöüä\,;\xa0])\s*?</p>\s*?<p>(?=[a-zöäü][^)])", ' ', new)
     fo.write(new)
@@ -72,9 +73,9 @@ def generate_file(tree, entryCkb):
     if global_vars.fMergeTablesVertically.get():
         merge_tables_vertically(tree)
     if global_vars.fReplaceNumbers.get():
-        replace_number_list(tree, listboxNumbers, global_vars.current_path)
+        replace_number_list(tree, listboxNumbers, global_vars.report_path)
     if global_vars.fReplaceWords.get():
-        replace_word_list(tree, listboxWords, global_vars.current_path)
+        replace_word_list(tree, listboxWords, global_vars.report_path)
     if global_vars.fSetUnorderedList.get():
         set_unordered_list(tree)
     if global_vars.fFootnotetables.get():
@@ -98,6 +99,15 @@ def generate_file(tree, entryCkb):
     tree.write(os.path.splitext(global_vars.tk.filename)[0] + '_modified.htm', encoding='UTF-8', method='html')
     if global_vars.fSupElements.get():
         sup_elements(os.path.splitext(global_vars.tk.filename)[0] + '_modified.htm', entryCkb)
+    # clean up user_words.txt
+    f = open(global_vars.working_folder + '/user_words.txt', 'r', encoding='utf-8')
+    l = f.read().splitlines()
+    f.close()
+    f = open(global_vars.working_folder + '/user_words.txt', 'w', encoding='utf-8')
+
+    f.write('\n'.join(list(dict.fromkeys(l))) + '\n')
+    f.close()
+
     global_vars.tk.destroy()
 
 
@@ -141,7 +151,7 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     scrollbarNumbers.pack(side="left", fill="y")
     # CONFIG 1
     listboxNumbers.config(yscrollcommand=scrollbarNumbers.set)
-    get_false_Numbers(tree, global_vars.current_path)
+    get_false_Numbers(tree, global_vars.report_path)
     for e in range(len(global_vars.lFalseNumberMatches)):
         listboxNumbers.insert(e, global_vars.lFalseNumberMatches[e])
     # ENTRY BOX NUMBERS
@@ -159,7 +169,7 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     frameLbWords.pack(side='bottom')
     frameWords.pack(fill='y', side='left')
     # LISTBOX 2
-    listboxWords = Listbox(frameLbWords, width=45, height=48)
+    listboxWords = FancyListbox(frameLbWords, width=45, height=48)
     listboxWords.pack(side='left', expand=True)
     listboxWords.bind('<Double-Button-1>', listbox_copy)
     # SCROLLBAR 2
@@ -168,7 +178,7 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     scrollbarWords.pack(side="left", fill="y")
     # CONFIG 2
     listboxWords.config(yscrollcommand=scrollbarWords.set)
-    get_false_Words(tree, global_vars.current_path)
+    get_false_Words(tree, global_vars.report_path)
     for e in range(len(global_vars.lAllFalseWordMatches)):
         listboxWords.insert(e, global_vars.lAllFalseWordMatches[e])
 
