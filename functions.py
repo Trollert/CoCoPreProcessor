@@ -189,6 +189,7 @@ def set_headers(tree):
         fHeader = False
         fBreakOut = False
         iHeaderRows = -1  # -1 for later comparison with 0 index
+        iOldHeaderRow = -1
         for row in table:
             for cell in row:
                 if cell.text is not None:
