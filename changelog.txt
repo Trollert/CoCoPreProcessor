@@ -1,9 +1,90 @@
-blablabla
-gkahdfgl
-liujjhglsoi
+#########################################
+#             Version 0.1.1:            #
+#########################################
 
-soduighos
-osihjgdo
-osijdgos
+- added version control
 
-sgdoighsoidhg
+	- the current version is now compared to the github version
+		- if they're not the same, the new update_script.py is downloaded and a message is displayed
+		  within the UI
+	
+	- if the version is up to date, a display changelog button is displayed which shows the changelog
+
+
+- added user specific config file which saves the user specified directory to open up when using the tool
+	
+	- if no .ini file is found, the user is asked to set his preferred working folder
+
+
+- added some more patterns 
+
+
+- 
+
+
+
+
+#########################################
+#             Version 0.1.0:            #
+#########################################
+
+- fixed some stupid bugs, probably created 10 more with this
+
+
+- added save function for word/number replacements
+
+	- any word/number replacements done within the UI Listsboxes is now preserved for the specific report
+	  even when encountering bugs etc.
+
+	- previous changes will be applied when opening the same report and will not be displayed in the 
+	  listboxes
+
+	- to revert this, just delete the save_numbers.pkl/save_words.pkl within the report folder
+
+
+- added user specific "allowed words" functionality
+
+	- users can now add words from the listbox directly to their own dictionary, so that they're no longer
+	  identified as wrong words
+
+	- to do this just select an entry in the listbox and right click on it to display the popup
+
+	- duplicates will be removed after generating the modified file
+
+	- this list is saved in the user_words.txt file and is user specific
+
+	- the allowed_words.txt will be continuously updated from github, so don't insert your entries in there
+
+
+- added vertical merging functionality (§§)
+	
+	- it is now possible to set merging markers within tables in ABBYY to merge those tables before uploading
+	
+	- to do this the marker §§ needs to be set at the first position within the specific cells
+		- this means, for the first subtable, you have to put §§ before any cell content in the rightmost
+		  last cell in the table (123.234.234,00 --> §§123.234.234,00)
+		- in the next "to merge" subtable the marker has to be set in the leftmost first cell of the table
+			- if there are more tables to be merged you have to also set the end marker (as in the first 
+			  subtable) within this table
+		- in the last subtable you only set the start marker
+
+- added picture renaming .png --> .jpg functionality
+	
+	- all .png picture-files (if present) are now renamed to .jpg and the link text is fitted within the html
+
+
+- added fonds report processing BETA
+
+	- this function is more specific than the other functions, in that it only applies the modifying checkboxes
+	  when the heading "Vermögensaufstellung" is found within a paragraph
+
+	- for now it is able to fix the annoying thousand separator space (" ") which is often not correctly 
+	  recognized by ABBYY. So it only applies to reports that have the number format "123 123 121,12". The
+	  number of decimal places is hereby preserved from the original and can be of variable length
+
+	- the other displayed option "break fonds table" should only be used, when you need to break the header
+	  and first column content down, as asked by the customer (or the sample)
+		- this will only affect the table following the "Vermögensaufstellung" Heading, so be sure to use 
+		  the "§§" merging function before using this function
+
+	- multiple occurences of two or more dots (.........) are now deleted

@@ -524,18 +524,21 @@ def first_cleanse(tree):
         # print(p.text)
         p.drop_tag()
 
-    # remove all multiple occurences of dots and ' )'
-    # hacky and not that versatile as of now
-    for e in tree.xpath('.//table//*[text()[not(normalize-space()="")]]'):
-        e.text = re.sub('\s*?\.{2,}', '', e.text)
-        e.text = re.sub(' \)', ')', e.text)
-        e.text = re.sub('\)\s*?\.', ')', e.text)
-        if len(e):
-            for i in e:
-                if i.tail:
-                    i.tail = re.sub('\s*?\.{2,}', '', i.tail)
-                    i.tail = re.sub(' \)', ')', i.tail)
-                    i.tail = re.sub('\)\s*?\.', ')', i.tail)
+    # check if report is a fonds report
+    if tree.xpath('/html/body/*[starts-with(normalize-space(text()),"Vermögensaufstellung")]'):
+        global_vars.fIsFondsReport.set(value=1)
+        # remove all multiple occurences of dots and ' )'
+        # hacky and not that versatile as of now
+        for e in tree.xpath('.//table//*[text()[not(normalize-space()="")]]'):
+            e.text = re.sub('\s*?\.{2,}', '', e.text)
+            e.text = re.sub(' \)', ')', e.text)
+            e.text = re.sub('\)\s*?\.', ')', e.text)
+            if len(e):
+                for i in e:
+                    if i.tail:
+                        i.tail = re.sub('\s*?\.{2,}', '', i.tail)
+                        i.tail = re.sub(' \)', ')', i.tail)
+                        i.tail = re.sub('\)\s*?\.', ')', i.tail)
 
     # strip all unnecessary white space
     for td in tree.xpath('//table//td'):
@@ -559,9 +562,6 @@ def first_cleanse(tree):
         elif not any(list(reg.fullmatch(sup.text) for reg in regFootnote)):
             sup.drop_tag()
 
-    # check if report is a fonds report
-    if tree.xpath('/html/body/*[starts-with(normalize-space(text()),"Vermögensaufstellung")]'):
-        global_vars.fIsFondsReport.set(value=1)
 
     # execute only if a formatted html file is used (ABBYY export formatted file)
     if tree.xpath('/html/head/style'):

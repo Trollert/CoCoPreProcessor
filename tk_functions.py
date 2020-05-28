@@ -24,11 +24,11 @@ class FancyListbox(Listbox):
 
 
 def display_changelog():
-    popup = global_vars.tk
-    textbox = Text(popup, height=100, width=100)
-    textbox.pack()
+    popup = Tk()
+    textbox = Text(popup, height=20, width=100)
+    textbox.pack(expand=True, fill='both')
     with open(global_vars.working_folder + '/changelog.txt', 'r') as f:
-        textbox.insert('INSERT', f.read())
+        textbox.insert('insert', f.read())
     popup.mainloop()
 
 
