@@ -30,9 +30,7 @@ fSupElements = BooleanVar(value=0)
 fRemoveEmptyRows = BooleanVar(value=1)
 fFixTsdSeparators = BooleanVar(value=1)
 fBreakFondsTable = BooleanVar(value=1)
-# list of function calls
-lfFunctCalls = []
 
 # global flags
-bFoundError = BooleanVar(value=0)
+bFoundError = False
 bUpToDate = True

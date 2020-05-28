@@ -5,6 +5,7 @@ from functools import partial
 from tkinter import filedialog, Listbox, Label, Scrollbar, Frame, Entry, Button, Checkbutton
 from lxml import html
 from urllib.request import urlopen, urlretrieve
+from urllib.error import URLError
 import configparser
 
 # custom imports
@@ -20,7 +21,12 @@ if os.path.exists(global_vars.working_folder + '/preproc_config.ini'):
     Config.read('preproc_config.ini')
     global_vars.opening_folder = Config['PATHS']['opening_dir']
     _version_ = Config['VERSION']['pre_proc_version']
-    _current_version_ = urlopen('https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/_version_.txt').read().decode('utf-8')
+    try:
+        _current_version_ = urlopen('https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/_version_.txt').read().decode('utf-8')
+    except URLError:
+        _current_version_ = _version_
+        print('Could not check current version online. Check your internet connection! This doesnt affect the normal processing process!')
+        global_vars.bFoundError = True
     if _version_ != _current_version_:
         global_vars.bUpToDate = False
         urlretrieve('https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/update_script.py',
@@ -242,5 +248,5 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     global_vars.tk.mainloop()
 
 os.remove('tmp.htm')  # remove original
-if global_vars.bFoundError.get():
+if global_vars.bFoundError:
     input('Fix displayed errors and press ENTER to quit!')

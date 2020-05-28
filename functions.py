@@ -291,7 +291,7 @@ def merge_tables_vertically(tree):
                                                                                                                   'and end marker: ' + str(
                         table.xpath('./tr[last()]/td[last()]/text()')))
                     fContinuedMerge = False
-                    global_vars.bFoundError.set(value=1)
+                    global_vars.bFoundError = True
                     continue
                 else:
                     leToMerge.append(table)
@@ -305,28 +305,44 @@ def merge_tables_vertically(tree):
                 print('Error in start marker position! Check the markers in ABBYY!\n'
                       'Error found in table with start marker: ' + str(table.xpath('./tr[1]/td[1]/text()')))
                 fContinuedMerge = False
-                global_vars.bFoundError.set(value=1)
+                global_vars.bFoundError = True
                 continue
             else:
                 leToMerge.append(table)
                 fContinuedMerge = False
         else:
             print('No markers detected, this shouldnt happen, report this bug!')
-            global_vars.bFoundError.set(value=1)
+            global_vars.bFoundError = True
             break
         # next table included in merge?
         # if not merge collected tables
         if not fContinuedMerge:
             # check if all tables in merge list have the same number of columns
             iColNumbers = []
+            iTableIndices = []
             for mTable in leToMerge:
                 lColTemp = []
                 # get max number of columns in a row
                 for row in mTable:
                     lColTemp.append(row.xpath('./td'))
                 iColNumbers.append(max(len(x) for x in lColTemp))
+                # get indices of tables to merge
+                iTableIndices.append(tree.find('body').index(mTable))
             # do all merging candidates have the same number of columns?
             if len(set(iColNumbers)) == 1:
+                # before merging, check whether all the tables in this merging process are consecutive tables within
+                # the body tag
+                # if not only raise warning
+                # TODO: raise warning and give user option to not proceed
+                if iTableIndices != list(range(min(iTableIndices), max(iTableIndices)+1)):
+                    print('You try to merge tables that are not consecutive within the html.\n'
+                          'Please check the table set beginning with'
+                          ' ' + str(leToMerge[0].xpath('./tr[last()]/td[last()]/text()')) + ' as end marker, ' +
+                          str(len(leToMerge)) + ' subtables and ' +
+                          str(iColNumbers) + ' columns.\n\n'
+                          'This is fairly unusual, but the merging process will still be executed.\n'
+                          'Redo the processing after fixing in ABBYY or Sourcecode, if this was not intentional!')
+                    global_vars.bFoundError = True
                 # remove end marker
                 # for first table
                 leToMerge[0].xpath('./tr[last()]/td[last()]')[0].text = leToMerge[0].xpath('./tr[last()]/td[last()]')[
@@ -350,8 +366,8 @@ def merge_tables_vertically(tree):
                 print(
                     'You try to merge tables with different amount of table columns. Fix this in ABBYY or CoCo! Tables will not be merged!')
                 print('Table end marker: ' + str(leToMerge[0].xpath('./tr[last()]/td[last()]/text()')))
-                print(iColNumbers)
-                global_vars.bFoundError.set(value=1)
+                print('The number of columns within the subtables are: ' + str(iColNumbers))
+                global_vars.bFoundError = True
             leToMerge = []
 
 
