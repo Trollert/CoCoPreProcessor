@@ -106,6 +106,7 @@ def generate_file(tree, entryCkb):
     tree.write(os.path.splitext(global_vars.tk.filename)[0] + '_modified.htm', encoding='UTF-8', method='html')
     if global_vars.fSupElements.get():
         sup_elements(os.path.splitext(global_vars.tk.filename)[0] + '_modified.htm', entryCkb)
+
     # clean up user_words.txt
     f = open(global_vars.working_folder + '/user_words.txt', 'r', encoding='utf-8')
     l = f.read().splitlines()
@@ -126,7 +127,7 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     ############
 
     # MASTER WINDOW
-    global_vars.tk.title('CoCo PreProcessor UI')
+    global_vars.tk.title('CoCo PreProcessor UI  --  ' + os.path.splitext(global_vars.tk.filename)[0])
     frameTop = Frame(global_vars.tk, height=3)
     frameTop.pack(side='top', fill='x')
     masterLabel = Label(frameTop,
