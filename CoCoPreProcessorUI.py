@@ -145,7 +145,6 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
         changelogButton = Button(frameTop, text='Display Changelog', width=30, font=('Arial', 9), command=display_changelog)
         changelogButton.pack(side='left')
 
-
     # FRAME 1
     frameNumbers = Frame(global_vars.tk, width=25, height=50)
     frameLbNumbers = Frame(frameNumbers, width=45, height=48)
@@ -238,6 +237,8 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     entryCkb.pack(side='left')
 
     if global_vars.fIsFondsReport.get():
+        fondsLabel = Label(frameChecks, text='Fonds report detected', font=('Arial', 9, 'bold'), fg='red')
+        fondsLabel.pack(side='top')
         ckbTsdFix = Checkbutton(frameChecks, anchor='w', text='fix tsd separators', variable=global_vars.fFixTsdSeparators)
         ckbBreakFondsTable = Checkbutton(frameChecks, anchor='w', text='break Vermögensaufstellung',
                                          variable=global_vars.fBreakFondsTable)
