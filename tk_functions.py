@@ -1,5 +1,5 @@
 import global_vars
-from tkinter import Listbox, Menu
+from tkinter import Listbox, Menu, Text
 
 class FancyListbox(Listbox):
 
@@ -22,6 +22,14 @@ class FancyListbox(Listbox):
         with open(global_vars.working_folder + '/user_words.txt', 'a', encoding='UTF-8') as f:
             f.write(self.get(self.curselection()) + '\n')
 
+
+def display_changelog():
+    popup = global_vars.tk.Tk()
+    textbox = Text(popup, height=100, width=100)
+    textbox.pack()
+    with open(global_vars.working_folder + '/changelog.txt', 'r') as f:
+        textbox.insert('INSERT', f.read())
+    popup.mainloop()
 
 
 # UI for number checks

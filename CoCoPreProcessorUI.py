@@ -10,7 +10,7 @@ import configparser
 
 # custom imports
 from functions import replace_word_list, replace_number_list, set_footnote_tables, get_false_Words, get_false_Numbers, set_headers, set_unordered_list, remove_empty_rows, merge_tables_vertically,sup_elements, set_span_headers, rename_pictures, fix_tsd_separators, break_fonds_table, wrap, first_cleanse
-from tk_functions import FancyListbox, listbox_copy, set_list, get_list
+from tk_functions import FancyListbox, listbox_copy, set_list, get_list, display_changelog
 from patterns import lSupElements
 import global_vars
 
@@ -29,6 +29,7 @@ if os.path.exists(global_vars.working_folder + '/preproc_config.ini'):
         global_vars.bFoundError = True
     if _version_ != _current_version_:
         global_vars.bUpToDate = False
+        # get current update_script.py from github
         urlretrieve('https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/update_script.py',
                     filename=global_vars.working_folder + '/update_script.py')
 else:
@@ -42,8 +43,6 @@ else:
     Config['VERSION']['pre_proc_version'] = urlopen('https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/_version_.txt').read().decode('utf-8')
     with open(global_vars.working_folder + '/preproc_config.ini', 'w') as configfile:
         Config.write(configfile)
-
-from tk_functions import listbox_copy, set_list, get_list
 
 #####################
 #     OPEN FILE     #
@@ -141,6 +140,8 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
                              'Please update with update_script!',
                         width=30, font=('Arial', 9, 'bold'), fg='red')
         versionLabel.pack(side='right')
+    else:
+        changelogButton = Button(frameTop, text='Display Changelog', width=30, font=('Arial', 9), cmd=display_changelog)
 
 
     # FRAME 1
