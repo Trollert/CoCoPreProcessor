@@ -1,5 +1,5 @@
 import global_vars
-from tkinter import Listbox, Menu, Text
+from tkinter import Listbox, Menu, Text, Tk
 
 class FancyListbox(Listbox):
 
@@ -24,7 +24,7 @@ class FancyListbox(Listbox):
 
 
 def display_changelog():
-    popup = global_vars.tk.Tk()
+    popup = global_vars.tk
     textbox = Text(popup, height=100, width=100)
     textbox.pack()
     with open(global_vars.working_folder + '/changelog.txt', 'r') as f:

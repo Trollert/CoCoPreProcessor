@@ -141,7 +141,8 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
                         width=30, font=('Arial', 9, 'bold'), fg='red')
         versionLabel.pack(side='right')
     else:
-        changelogButton = Button(frameTop, text='Display Changelog', width=30, font=('Arial', 9), cmd=display_changelog)
+        changelogButton = Button(frameTop, text='Display Changelog', width=30, font=('Arial', 9), command=display_changelog)
+        changelogButton.pack(side='left')
 
 
     # FRAME 1
