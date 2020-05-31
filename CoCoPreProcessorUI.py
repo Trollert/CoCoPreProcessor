@@ -9,7 +9,7 @@ from urllib.error import URLError
 import configparser
 
 # custom imports
-from functions import replace_word_list, replace_number_list, set_footnote_tables, get_false_Words, get_false_Numbers, set_headers, set_unordered_list, remove_empty_rows, merge_tables_vertically,sup_elements, set_span_headers, rename_pictures, fix_tsd_separators, break_fonds_table, wrap, first_cleanse
+from functions import big_fucking_table, replace_word_list, replace_number_list, set_footnote_tables, get_false_Words, get_false_Numbers, set_headers, set_unordered_list, remove_empty_rows, merge_tables_vertically, sup_elements, set_span_headers, rename_pictures, fix_tsd_separators, break_fonds_table, wrap, first_cleanse
 from tk_functions import FancyListbox, listbox_copy, set_list, get_list, display_changelog
 from patterns import lSupElements
 import global_vars
@@ -79,6 +79,7 @@ def generate_file(tree, entryCkb):
         remove_empty_rows(tree)
     if global_vars.fMergeTablesVertically.get():
         merge_tables_vertically(tree)
+    big_fucking_table(tree)
     if global_vars.fReplaceNumbers.get():
         replace_number_list(tree, listboxNumbers, global_vars.report_path)
     if global_vars.fReplaceWords.get():

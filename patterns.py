@@ -30,7 +30,7 @@ regNumbers = [
     # other allowed cell content
     re.compile('^[-.,§\s]+$', re.MULTILINE),  # empty cells and placeholder -,.
     re.compile('^\s*?(§§)?(19|20)\d{2}\s*?$', re.MULTILINE),  # year 1900 - 2099
-    re.compile('^\s*?(§§)?\(?[0123]?\d?[./-]?[0123]?\d[./-](19|20)?\d{2}\)?\s*?$', re.MULTILINE),
+    # re.compile('^\s*?(§§)?\(?[0123]?\d?[./-]?[0123]?\d[./-](19|20)?\d{2}\)?\s*?$', re.MULTILINE),
     # dates 12.02.1991; 12.31.91: 12.31.2091
     re.compile('^.*[A-Za-z]{2,}.*$', re.DOTALL),  # text
     re.compile('^\s*?(§§)?(in)?\s*?(TEUR|Tsd|Mio|Mrd|Jahre|T)?\.?\s?([€$£]|EUR)\s*?$', re.IGNORECASE | re.MULTILINE),
@@ -40,17 +40,19 @@ regNumbers = [
 ]
 
 regHeaderContent = [
-    regNumbers[8],  # dates
+    # regNumbers[8],  # dates
     regNumbers[7],  # year
-    regNumbers[10],  # T€, Mio. €, Mrd. €, in €
+    regNumbers[10-1],  # T€, Mio. €, Mrd. €, in €
     re.compile('^\s*?(in)?\s*?(mio)?\.?(TEUR|TSD|MRD|EUR)?\s*?$', re.IGNORECASE | re.MULTILINE),  # T€, Mio. €, Mrd. €, in €
-    re.compile('^\s*?[0123]?\d\.?\s*?(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.?\s*?(19|20)?\d{2}\s*?$',
-               re.IGNORECASE | re.MULTILINE),
-    re.compile('^\s*?[0123]?\d\.?\s*?(Jan|Feb|Mär|Apr|Mai|Jun|Jul|Aug|Sep|Okt|Nov|Dec)\.?\s*?(19|20)?\d{2}\s*?$',
-               re.IGNORECASE | re.MULTILINE),
+    # re.compile('^\s*?[0123]?\d\.?\s*?(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.?\s*?(19|20)?\d{2}\s*?$',
+    #            re.IGNORECASE | re.MULTILINE),
+    # re.compile('^\s*?[0123]?\d\.?\s*?(Jan|Feb|Mär|Apr|Mai|Jun|Jul|Aug|Sep|Okt|Nov|Dez)\.?\s*?(19|20)?\d{2}\s*?$',
+    #            re.IGNORECASE | re.MULTILINE),
+    # re.compile('\s*?[0123]?\d\.?\s*?(Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)\s*?(19|20)?\d{2}\s*?$', re.IGNORECASE | re.MULTILINE),
+    # re.compile('\s*?[0123]?\d\.?\s*?(January|February|March|April|May|June|July|August|September|October|November|December)\s*?(19|20)?\d{2}\s*?$', re.IGNORECASE | re.MULTILINE),
     re.compile('^\s*?(in)?\s*?(Millionen|Milliarden|tausend)?\s*?(€|\$|£|euro|eur)\s*?$',
                re.IGNORECASE | re.MULTILINE),
-    regNumbers[11]
+    regNumbers[11-1]
 ]
 
 regUnorderedList = [

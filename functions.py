@@ -7,6 +7,7 @@ from textwrap import wrap as text_wrap
 import global_vars
 from patterns import *
 import os
+from dateutil.parser import parse
 
 ######################
 # OPTIONAL FUNCTIONS #
@@ -127,32 +128,47 @@ def get_false_Numbers(tree, path):
 
     for table in leStandardTables:
         leSubtables = []
-        iFormatCount = [0] * len(regNumbers)
+        iFormatCount = [0] * (len(regNumbers) + 1)
         # select all non-empty td-elements, beginning at second column
-        leSubtables.append(table.xpath('.//tr/td[position() > 1 and text()]'))
+        leSubtables.append(table.xpath('.//tr/td[position() > 1 and normalize-space(text())]'))
         for row in leSubtables:
             for cell in row:
-                cell.text = cell.xpath('normalize-space(text())')
-                if cell.text == '':
-                    break
-                cell_format = [0] * len(regNumbers)
-                for i in range(len(regNumbers)):
-                    # breaks after first match
-                    if cell.text is not None and regNumbers[i].fullmatch(str(cell.text)):
-                        cell_format[i] += 1
-                        break
-                if sum(cell_format):
-                    iFormatCount = [a + b for a, b in zip(iFormatCount, cell_format)]
-                elif cell.text is not None:
-                    if global_vars.fFixNumbers.get():
-                        if cell.find('br') is not None and re.fullmatch('[0-9,. -]*', cell.text):
-                            cell.find('br').drop_tag()
-                            if any(list(reg.fullmatch(re.sub(r'\s+', '', cell.text)) for reg in regNumbers[0:4])):
-                                cell.text = re.sub(r'\s+', '', cell.text)
+                # trim leading/trailing whitespace (not sure why its done here)
+                # cell.text = cell.xpath('normalize-space(text())')
+                if cell.text:
+                    cell_format = [0] * len(regNumbers)
+                    for i in range(len(regNumbers)):
+                        # breaks after first match to count what format the number was displayed
+                        if cell.text and regNumbers[i].fullmatch(str(cell.text)):
+                            cell_format[i] += 1
+                            break
+
+                    # if any format matched increase the table counter and dont change anything
+                    if sum(cell_format):
+                        iFormatCount = [a + b for a, b in zip(iFormatCount, cell_format)]
+                    elif is_date(cell.text, False):
+                        # print('Found date string in: ' + cell.text)
+                        iFormatCount[-1] += 1
+                    # elif is_date(cell.text, True):
+                    #     print('Found date string in: ' + cell.text + ' \n But only in fuzzy mode.')
+                    #     print('Ignored tokens: ' + str(is_date(cell.text, True)[1]))
+                    # if no match could be found, try to fix it or move it to false match list
+                    else:
+                        if global_vars.fFixNumbers.get():
+                            # if cell only contains number tokens, try to fix format
+                            if re.fullmatch('[0-9,. \-+]*', cell.text_content()):
+                                # drop br-tag if one is found
+                                if cell.find('br'):
+                                    cell.find('br').drop_tag()
+                                # if, after removing whitespace, the resulting format matches a number format,
+                                # remove the whitespace from tree element
+                                if any(list(reg.fullmatch(re.sub(r'\s+', '', cell.text)) for reg in regNumbers[0:4])):
+                                    cell.text = re.sub(r'\s+', '', cell.text)
+                            # otherwise append it to false number match list
+                            else:
+                                global_vars.lFalseNumberMatches.append(cell.text)
                         else:
                             global_vars.lFalseNumberMatches.append(cell.text)
-                    else:
-                        global_vars.lFalseNumberMatches.append(cell.text)
 
 def get_false_Words(tree, path):
     # check false word separations
@@ -192,12 +208,13 @@ def set_headers(tree):
         iOldHeaderRow = -1
         for row in table:
             for cell in row:
-                if cell.text is not None:
-                    # first compare cell content to header content matches
+                if cell.text:
+                    # first compare cell content to header content matches or date type
                     # if anything matches, set current row to header row
-                    if any(list(reg.fullmatch(cell.text) for reg in regHeaderContent)):
+                    if any(list(reg.fullmatch(cell.text) for reg in regHeaderContent)) or is_date(cell.text, False):
                         fHeader = True
                         iHeaderRows = table.index(row)
+
                     # then compare to number matches
                     # if it matches here the function quits and reverts back to previous header row
                     if any(list(reg.fullmatch(cell.text) for reg in regNumbers[0:4])):
@@ -209,14 +226,19 @@ def set_headers(tree):
                 break
             iOldHeaderRow = iHeaderRows
 
-            # get the first occuring row in which the first cell is not empty
+        # get the first occuring row in which the first cell is not empty
         eFirstTextRow = table.xpath('./tr[td[position() = 1 and text()]][1]')
         if len(eFirstTextRow):
             # index of the first cell with text - 1 to get only empty cells
             iFirstTextCellRow = table.index(eFirstTextRow[0]) - 1
+            # compare to header content matches
             if iHeaderRows <= iFirstTextCellRow:
                 iHeaderRows = iFirstTextCellRow
                 fHeader = True
+        # when no header is found and table is of specific size, set first row to header row
+        if len(table) >= 4 and get_max_columns(table) >= 3 and iHeaderRows == -1:
+            iHeaderRows = 0
+            fHeader = True
 
         if fHeader:
             # create lists with header and body elements
@@ -321,11 +343,7 @@ def merge_tables_vertically(tree):
             iColNumbers = []
             iTableIndices = []
             for mTable in leToMerge:
-                lColTemp = []
-                # get max number of columns in a row
-                for row in mTable:
-                    lColTemp.append(row.xpath('./td'))
-                iColNumbers.append(max(len(x) for x in lColTemp))
+                iColNumbers.append(get_max_columns(mTable))
                 # get indices of tables to merge
                 iTableIndices.append(tree.find('body').index(mTable))
             # do all merging candidates have the same number of columns?
@@ -456,6 +474,28 @@ def break_fonds_table(tree):
                     brTag.tail = tail
                     cell.append(brTag)
 
+def big_fucking_table(tree):
+    secTables = tree.xpath('//table[count(tr[1]/td) = 5]')
+    for table in secTables:
+        for row in table:
+            brContent = []
+            for cell in row:
+                if len(cell):
+                    if cell[0].tag == 'br':
+                        brContent.append(cell[0].tail)
+                        cell.remove(cell[0])
+                else:
+                    brContent.append(' ')
+
+            if all(elem == ' ' for elem in brContent):
+                continue
+            if len(brContent) == 5:
+                newTr = etree.Element('tr')
+                for txt in brContent:
+                    newTd = etree.Element('td')
+                    newTd.text = txt
+                    newTr.append(newTd)
+                row.addnext(newTr)
 
 # fSplitRowSpan = BooleanVar(value=1)
 # # split rowspan cells
@@ -590,3 +630,30 @@ def first_cleanse(tree):
     )
     tree = cleaner.clean_html(tree)
     return tree
+
+
+####################
+# HELPER FUNCTIONS #
+####################
+
+# returns TRUE if input string can be interpreted as a date
+# if fuzzy is true, ignore unknown tokens in string
+def is_date(sInput, bFuzzy):
+    if bFuzzy:
+        try:
+            return parse(sInput, fuzzy_with_tokens=bFuzzy)
+        except ValueError:
+            return False
+    else:
+        try:
+            parse(sInput, fuzzy=bFuzzy)
+            return True
+        except ValueError:
+            return False
+
+def get_max_columns(table):
+    nrColumns = []
+    # get max number of columns in a row
+    for row in table:
+        nrColumns.append(row.xpath('./td'))
+    return max(len(x) for x in nrColumns)
