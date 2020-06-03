@@ -1,4 +1,23 @@
 #########################################
+#             Version 0.1.2:            #
+#########################################
+
+- added inline editing of word/number replacements
+	
+	- just doubleclick on an entry and edit it in place
+	- to confirm, select next entry or hit 'return'
+	- navigation with arrow keys and 'return' is also possible
+
+- improved reliability of date detection
+
+- fixed bug where no previously done replacements where considered
+
+- added stuff to patterns
+
+- improved layout of different patterns
+
+
+#########################################
 #             Version 0.1.1:            #
 #########################################
 

@@ -3,7 +3,6 @@ import pickle
 from lxml import etree
 from lxml.html.clean import Cleaner
 from textwrap import wrap as text_wrap
-# from CoCoPreProcessorUI import tree
 import global_vars
 from patterns import *
 import os
@@ -35,17 +34,17 @@ class GermanParserInfo(parser.parserinfo):
 # OPTIONAL FUNCTIONS #
 ######################
 
-def replace_word_list(tree, listbox, path):
+def replace_word_list(tree, replace_list, old_list, path):
     """
     replace the corrected listbox items with their counterparts
     """
 
     leTextElements = tree.xpath('.//*[normalize-space(text())]')
     # get a list of listbox lines
-    corrected_list = list(listbox.get(0, 'end'))
+    corrected_list = list(replace_list)
 
     # create duplicate to not create confusion while popping
-    tempAllFalseWords = global_vars.lAllFalseWordMatches
+    tempAllFalseWords = old_list
 
     # remove unaffected entries from both lists
     for idx in reversed(range(len(tempAllFalseWords))):
@@ -54,15 +53,7 @@ def replace_word_list(tree, listbox, path):
             corrected_list.pop(idx)
 
     # create file to safe already replaced words in case of error
-    save_dict = dict(zip(tempAllFalseWords, corrected_list))
-    if os.path.exists(path + '/save_words.pkl'):
-        save_file = open(path + '/save_words.pkl', 'rb')
-        old_dict = pickle.load(save_file)
-        save_dict = {**old_dict, **save_dict}
-        save_file.close()
-    save_file = open(path + '/save_words.pkl', 'wb')
-    pickle.dump(save_dict, save_file)
-    save_file.close()
+    save_replacements(dict(zip(tempAllFalseWords, corrected_list)), '/save_words.pkl')
 
     for e in leTextElements:
         for repEl in range(len(corrected_list)):
@@ -70,27 +61,27 @@ def replace_word_list(tree, listbox, path):
                 e.text = e.text.replace(tempAllFalseWords[repEl], corrected_list[repEl])
 
 
-def replace_number_list(tree, listbox, path):
+def replace_number_list(tree, replace_list, old_list, path):
     leNumberElements = tree.xpath('//table[not(@class="footnote")]/tr/td[normalize-space(text())]')
     # get a list of listbox lines
-    temp_list = list(listbox.get(0, 'end'))
-    tempAllfalseNumbers = global_vars.lFalseNumberMatches
-
+    temp_list = replace_list
+    tempAllfalseNumbers = old_list
     for idx in reversed(range(len(tempAllfalseNumbers))):
         if tempAllfalseNumbers[idx] == temp_list[idx]:
             tempAllfalseNumbers.pop(idx)
             temp_list.pop(idx)
 
     # create file to safe already replaced numbers in case of error
-    save_dict = dict(zip(tempAllfalseNumbers, temp_list))
-    if os.path.exists(path + '/save_numbers.pkl'):
-        save_file = open(path + '/save_numbers.pkl', 'rb')
-        old_dict = pickle.load(save_file)
-        save_dict = {**old_dict, **save_dict}
-        save_file.close()
-    save_file = open(path + '/save_numbers.pkl', 'wb')
-    pickle.dump(save_dict, save_file)
-    save_file.close()
+    save_replacements(dict(zip(tempAllfalseNumbers, temp_list)), '/save_numbers.pkl')
+    # save_dict = dict(zip(tempAllfalseNumbers, temp_list))
+    # if os.path.exists(path + '/save_numbers.pkl'):
+    #     save_file = open(path + '/save_numbers.pkl', 'rb')
+    #     old_dict = pickle.load(save_file)
+    #     save_dict = {**old_dict, **save_dict}
+    #     save_file.close()
+    # save_file = open(path + '/save_numbers.pkl', 'wb')
+    # pickle.dump(save_dict, save_file)
+    # save_file.close()
 
     for e in leNumberElements:
         for repEl in range(len(temp_list)):
@@ -143,11 +134,12 @@ def get_false_numbers(tree, path):
         save_file = open(path + '/save_numbers.pkl', 'rb')
         save_dict = pickle.load(save_file)
         save_file.close()
-        for row in leStandardTables:
-            for cell in row:
-                if cell.text:
-                    for old, new in save_dict.items():
-                        cell.text = cell.text.replace(old, new)
+        for table in leStandardTables:
+            for row in table:
+                for cell in row:
+                    if cell.text is not None:
+                        for old, new in save_dict.items():
+                            cell.text = cell.text.replace(old, new)
 
     for table in leStandardTables:
         leSubtables = []
@@ -180,21 +172,13 @@ def get_false_numbers(tree, path):
                     if sum(cell_format):
                         iFormatCount = [a + b for a, b in zip(iFormatCount, cell_format)]
                     # if br-tags where present within the cell, check that first
-                    elif cellWithoutBr and is_date(cellWithoutBr, False):
-                        # print('Found date string in: ' + cell.text_content())
-                        noSpace = re.sub('\s', '', cellWithoutBr)
-                        # if removing spaces results in a valid date format, remove them
-                        if is_date(noSpace, False):
-                            cell.text = noSpace
+                    elif cellWithoutBr and is_date(cellWithoutBr, False)[0]:
                         iFormatCount[-1] += 1
                     # if not check normally
-                    elif is_date(cell.text, False):
-                        # print('Found date string in: ' + cell.text_content())
-                        noSpace = re.sub('\s', '', cell.text)
-                        # if removing spaces results in a valid date format, remove them
-                        if is_date(noSpace, False):
-                            cell.text = noSpace
+                    elif is_date(cell.text, False)[0]:
                         iFormatCount[-1] += 1
+                        if is_date(cell.text, False)[1]:
+                            cell.text = re.sub('\s', '', cell.text)
                     elif any(reg.fullmatch(cell.text) for reg in regMisc + regHeaderContent):
                         continue
                     # if no match could be found, try to fix it or move it to false match list
@@ -217,6 +201,7 @@ def get_false_numbers(tree, path):
                                 global_vars.lFalseNumberMatches.append(cell.text)
                         else:
                             global_vars.lFalseNumberMatches.append(cell.text)
+    global_vars.lFalseNumberMatches = list(dict.fromkeys(global_vars.lFalseNumberMatches))
 
 
 def get_false_words(tree, path):
@@ -697,14 +682,15 @@ def is_date(sInput, bFuzzy):
     else:
         try:
             parser.parse(sInput, fuzzy=False, parserinfo=GermanParserInfo())
-            return True
+            return [True, False]
         except ValueError:
             try:
                 sInput = re.sub('\s', '', sInput)
                 parser.parse(sInput, fuzzy=False, parserinfo=GermanParserInfo())
-                return True
+                return [True, True]
             except ValueError:
-                return False
+                return [False]
+
 
 def get_max_columns(table):
     nrColumns = []
@@ -712,3 +698,14 @@ def get_max_columns(table):
     for row in table:
         nrColumns.append(row.xpath('./td'))
     return max(len(x) for x in nrColumns)
+
+
+def save_replacements(repl_dict, name):
+    if os.path.exists(global_vars.report_path + name):
+        save_file = open(global_vars.report_path + name, 'rb')
+        old_dict = pickle.load(save_file)
+        repl_dict = {**old_dict, **repl_dict}
+        save_file.close()
+    save_file = open(global_vars.report_path + name, 'wb')
+    pickle.dump(repl_dict, save_file)
+    save_file.close()

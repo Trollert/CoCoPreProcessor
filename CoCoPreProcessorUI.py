@@ -2,15 +2,15 @@ import sys
 import re
 import os
 from functools import partial
-from tkinter import filedialog, Listbox, Label, Scrollbar, Frame, Entry, Button, Checkbutton
+from tkinter import filedialog, Label, Frame, Entry, Button, Checkbutton
 from lxml import html
 from urllib.request import urlopen, urlretrieve
 from urllib.error import URLError
 import configparser
 
 # custom imports
-from functions import big_fucking_table, replace_word_list, replace_number_list, set_footnote_tables, get_false_words, get_false_numbers, set_headers, set_unordered_list, remove_empty_rows, merge_tables_vertically, sup_elements, set_span_headers, rename_pictures, fix_tsd_separators, break_fonds_table, wrap, first_cleanse
-from tk_functions import FancyListbox, listbox_copy, set_list, set_entry_box, display_changelog
+from functions import big_fucking_table, replace_word_list, replace_number_list, set_footnote_tables, get_false_words, get_false_numbers, set_headers, set_unordered_list, remove_empty_rows, merge_tables_vertically, sup_elements, set_span_headers, rename_pictures, fix_tsd_separators, break_fonds_table, first_cleanse
+from tk_functions import display_changelog, VerticalScrolledFrame, ListboxEditable
 from patterns import lSupElements
 import global_vars
 
@@ -81,9 +81,9 @@ def generate_file(tree, entryCkb):
         merge_tables_vertically(tree)
     # big_fucking_table(tree)
     if global_vars.fReplaceNumbers.get():
-        replace_number_list(tree, listboxNumbers, global_vars.report_path)
+        replace_number_list(tree, listboxNumbers2.return_list(), global_vars.lFalseNumberMatches, global_vars.report_path)
     if global_vars.fReplaceWords.get():
-        replace_word_list(tree, listboxWords, global_vars.report_path)
+        replace_word_list(tree, listboxWords.return_list(), global_vars.lAllFalseWordMatches, global_vars.report_path)
     if global_vars.fSetUnorderedList.get():
         set_unordered_list(tree)
     if global_vars.fFootnotetables.get():
@@ -129,11 +129,12 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
 
     # MASTER WINDOW
     global_vars.tk.title('CoCo PreProcessor UI  --  ' + os.path.splitext(global_vars.tk.filename)[0])
+    global_vars.tk.geometry('700x800')
     frameTop = Frame(global_vars.tk, height=3)
     frameTop.pack(side='top', fill='x')
     masterLabel = Label(frameTop,
-                        text='Double Click on list entry to copy to clipboard\n'
-                             'Single Click to fix in yellow entry box. ENTER to confirm changes!',
+                        text='Double Click on list entry to change entry OR\n'
+                             'Navigate with ↑↓ between entries, open with ENTER',
                         width=55, font=('Arial', 10, 'bold'))
     masterLabel.pack(side='left')
     if not global_vars.bUpToDate:
@@ -147,62 +148,24 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
         changelogButton.pack(side='left')
 
     # FRAME 1
-    frameNumbers = Frame(global_vars.tk, width=25, height=50)
-    frameLbNumbers = Frame(frameNumbers, width=45, height=48)
-    frameLbNumbers.pack(side='bottom')
-    frameNumbers.pack(fill='y', side='left')
-    # LISTBOX 1
-    listboxNumbers = Listbox(frameLbNumbers, width=20, height=48)
-    listboxNumbers.pack(side='left', expand=True)
-    listboxNumbers.bind('<Double-Button-1>', listbox_copy)
-
-    # SCROLLBAR 1
-    scrollbarNumbers = Scrollbar(frameLbNumbers, orient="vertical")
-    scrollbarNumbers.config(command=listboxNumbers.yview)
-    scrollbarNumbers.pack(side="left", fill="y")
-    # CONFIG 1
-    listboxNumbers.config(yscrollcommand=scrollbarNumbers.set)
+    # this is not a common frame, it enables scrolling within a frame
+    frameNumbers2 = VerticalScrolledFrame(global_vars.tk, width=150, height=50, borderwidth=2, relief="groove")
+    frameNumbers2.pack(fill='y', side='left')
+    # LISTBOX 2
+    # this is not a real listbox, its a frame with sublabels to enable inline editing
     get_false_numbers(tree, global_vars.report_path)
-    for e in range(len(global_vars.lFalseNumberMatches)):
-        listboxNumbers.insert(e, global_vars.lFalseNumberMatches[e])
-    # ENTRY BOX NUMBERS
-    # use entry widget to display/edit selection
-    entryNumbers = Entry(frameNumbers, width=25, bg='yellow')
-
-    entryNumbers.pack(side='top')
-    entryNumbers.bind('<Return>', partial(set_list, listboxNumbers, entryNumbers))
-    listboxNumbers.bind('<ButtonRelease-1>', partial(set_entry_box, listboxNumbers, entryNumbers))
-    entryNumbers.focus_force()
+    listboxNumbers2 = ListboxEditable(frameNumbers2, global_vars.lFalseNumberMatches, width=25)
+    listboxNumbers2.placeListBoxEditable()
 
     # FRAME 2
-    frameWords = Frame(global_vars.tk, width=50, height=50)
-    frameLbWords = Frame(frameWords, width=45, height=48)
-    frameLbWords.pack(side='bottom')
-    frameWords.pack(fill='y', side='left')
+    # this is not a common frame, it enables scrolling within a frame
+    frameWords = VerticalScrolledFrame(global_vars.tk, width=250, height=50, borderwidth=2, relief="groove")
+    frameWords.pack(fill='y', side='left', expand=True)
     # LISTBOX 2
-    listboxWords = FancyListbox(frameLbWords, width=45, height=48)
-    listboxWords.pack(side='left', expand=True)
-    listboxWords.bind('<Double-Button-1>', listbox_copy)
-    # SCROLLBAR 2
-    scrollbarWords = Scrollbar(frameLbWords, orient="vertical")
-    scrollbarWords.config(command=listboxWords.yview)
-    scrollbarWords.pack(side="left", fill="y")
-    # CONFIG 2
-    listboxWords.config(yscrollcommand=scrollbarWords.set)
+    # this is not a real listbox, its a frame with sublabels to enable inline editing
     get_false_words(tree, global_vars.report_path)
-    for e in range(len(global_vars.lAllFalseWordMatches)):
-        listboxWords.insert(e, global_vars.lAllFalseWordMatches[e])
-
-    # ENTRY BOX WORDS
-    # use entry widget to display/edit selection
-    entryWords = Entry(frameWords, width=50, bg='yellow')
-    entryWords.insert(0, 'Click on an item in the listbox')
-    entryWords.pack(side='top')
-    entryWords.bind('<Return>', partial(set_list, listboxWords, entryWords))
-    listboxWords.bind('<ButtonRelease-1>', partial(set_entry_box, listboxWords, entryWords))
-    entryWords.focus_force()
-    # buttonWords = Button(frameWords, text='REPLACE AND QUIT', command=replace_list)
-    # buttonWords.pack(side='top')
+    listboxWords = ListboxEditable(frameWords, global_vars.lAllFalseWordMatches, width=45)
+    listboxWords.placeListBoxEditable()
 
     # FRAME 3
     frameChecks = Frame(global_vars.tk, width=25, height=50)
