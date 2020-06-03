@@ -6,57 +6,43 @@ import re
 
 # compile footnote patterns as regex object
 regFootnote = [
-    re.compile('\s*\d{1,2}\s*'),
-    re.compile('\s*\(?\*{1,9}\)?\s*'),
-    re.compile('\s*[a-z]\s*'),
-    re.compile('\s*\d{1,2}\)\s*'),
-    re.compile('\s*[(\[]\d{1,2}[)\]]\s*')
-]
+    re.compile('\s*?[(\[]?\d{1,2}[)\]]?\s*?'),        # 1; 1); 1]; (1); [1]
+    re.compile('\s*?\(?\*{1,9}\)?\s*?'),              # *; *******); (****)
+    re.compile('\s*?[a-z]\)?\s*?')                    # a; a)
+    ]
 
 # compile number format as regex objects
 regNumbers = [
-    re.compile('(^\s*?(§§)?\(?\s*?[-+$£]{0,3}\s*?\d{1,3}[ €$%£]{0,2}\s*?\)?$)', re.MULTILINE),
+    re.compile('(^\s*?(§§)?\(?\s*?[-+T$£]{0,3}\s*?\d{1,3}\s*?[€$%£T]{0,2}\s*?\)?$)', re.MULTILINE),
     # 123 has to be first, to prevent double matches
-    re.compile('(^\s*?(§§)?\(?\s*?[-+€£]{0,3}\s*?\d{1,3}(\.\d{3})*?(,\d{1,5})?\s*?[€%‰£]?\s*?\)?\s*?$)', re.MULTILINE),
+    re.compile('(^\s*?(§§)?\(?\s*?[-+T€£]{0,3}\s*?\d{1,3}(\.\d{3})*?(,\d{1,5})?\s*?[€%‰£]?\s*?\)?\s*?(p\.a\.)?\s*?$)', re.MULTILINE),
     # 123.123,12000 ; 123,1 ; 123
-    re.compile('(^\s*?(§§)?\(?\s*?[-+$£]{0,3}\s*?\d{1,3}(,\d{3})*?(\.\d{1,5})?\s*?[$%‰£]?\s*?\)?\s*?$)', re.MULTILINE),
+    re.compile('(^\s*?(§§)?\(?\s*?[-+T$£]{0,3}\s*?\d{1,3}(,\d{3})*?(\.\d{1,5})?\s*?[$%‰£]?\s*?\)?\s*?(p\.a\.)?\s*?$)', re.MULTILINE),
     # 123,123.12 ; 123.1 ; 123
-    re.compile('(^\s*?(§§)?\(?\s*?[-+€£]{0,3}\s*?\d{1,3}(\s\d{3})*?(,\d{1,5})?\s*?[€%‰£]?\s*?\)?\s*?$)', re.MULTILINE),
+    re.compile('(^\s*?(§§)?\(?\s*?[-+T€£]{0,3}\s*?\d{1,3}(\s\d{3})*?(,\d{1,5})?\s*?[€%‰£]?\s*?\)?\s*?(p\.a\.)?\s*?$)', re.MULTILINE),
     # 123 123,12 ; 123,1 ; 123
-    re.compile('(^\s*?(§§)?\(?\s*?[-+$£]{0,3}\s*?\d{1,3}(\s\d{3})*?(\.\d{1,5})?\s*?[€%‰£]?\s*?\)?\s*?$)', re.MULTILINE),
+    re.compile('(^\s*?(§§)?\(?\s*?[-+T$£]{0,3}\s*?\d{1,3}(\s\d{3})*?(\.\d{1,5})?\s*?[$€%‰£]?\s*?\)?\s*?(p\.a\.)?\s*?$)', re.MULTILINE)
     # 123 123.12 ; 123.1 ; 123
-    re.compile('^\s*?(§§)?(%|n\/a|n\.a|n\/m)\s*?$', re.IGNORECASE),
+    ]
 
-    # other allowed cell content
-    re.compile('^[-.,§\s]+$', re.MULTILINE),  # empty cells and placeholder -,.
-    re.compile('^\s*?(§§)?(19|20)\d{2}\s*?$', re.MULTILINE),  # year 1900 - 2099
+# compile miscellaneous table content
+regMisc = [
+    re.compile('^\s*?(§§)?(n\/a|n\.a\.?|n\/m)\s*?$', re.IGNORECASE),         # n/a; n/m; n.a; n.a.
+    re.compile('^[-.,§\s*]+$', re.MULTILINE),                                 # empty cells and placeholder -,. §
+    re.compile('^.*[A-Za-z]{2,}.*$', re.DOTALL)                              # text
+    # re.compile('^\s*?(§§)?(19|20)\d{2}\s*?$', re.MULTILINE),  # year 1900 - 2099
     # re.compile('^\s*?(§§)?\(?[0123]?\d?[./-]?[0123]?\d[./-](19|20)?\d{2}\)?\s*?$', re.MULTILINE),
-    # dates 12.02.1991; 12.31.91: 12.31.2091
-    re.compile('^.*[A-Za-z]{2,}.*$', re.DOTALL),  # text
-    re.compile('^\s*?(§§)?(in)?\s*?(TEUR|Tsd|Mio|Mrd|Jahre|T)?\.?\s?([€$£]|EUR)\s*?$', re.IGNORECASE | re.MULTILINE),
-    # T€, Mio. €, Mrd. €, in
-    re.compile('^\s*?(§§)?\(?(\$|€|£)(’|‘)(000|m)\)?\s*?$',
-               re.IGNORECASE | re.MULTILINE)
-]
+    ]
 
+# compile possible header content
 regHeaderContent = [
-    # regNumbers[8],  # dates
-    regNumbers[7],  # year
-    regNumbers[10-1],  # T€, Mio. €, Mrd. €, in €
-    re.compile('^\s*?(in)?\s*?(mio)?\.?(TEUR|TSD|MRD|EUR)?\s*?$', re.IGNORECASE | re.MULTILINE),  # T€, Mio. €, Mrd. €, in €
-    # re.compile('^\s*?[0123]?\d\.?\s*?(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.?\s*?(19|20)?\d{2}\s*?$',
-    #            re.IGNORECASE | re.MULTILINE),
-    # re.compile('^\s*?[0123]?\d\.?\s*?(Jan|Feb|Mär|Apr|Mai|Jun|Jul|Aug|Sep|Okt|Nov|Dez)\.?\s*?(19|20)?\d{2}\s*?$',
-    #            re.IGNORECASE | re.MULTILINE),
-    # re.compile('\s*?[0123]?\d\.?\s*?(Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)\s*?(19|20)?\d{2}\s*?$', re.IGNORECASE | re.MULTILINE),
-    # re.compile('\s*?[0123]?\d\.?\s*?(January|February|March|April|May|June|July|August|September|October|November|December)\s*?(19|20)?\d{2}\s*?$', re.IGNORECASE | re.MULTILINE),
-    re.compile('^\s*?(in)?\s*?(Millionen|Milliarden|tausend)?\s*?(€|\$|£|euro|eur)\s*?$',
+    re.compile('^\s*?(§§)?\(?(in)?\s*?(Tsd|Mio|Mrd|T|Millionen|Milliarden|tausend)?\.?\s?([€$£%‰]|EUR|TEUR|Jahre|tagen|prozent|qm|m2|sqm|m|km)\)?\s*?$',
                re.IGNORECASE | re.MULTILINE),
-    regNumbers[11-1]
+    re.compile('^\s*?(§§)?\(?(\$|€|£)(’|‘|\')(000|m)\)?\s*?$', re.IGNORECASE | re.MULTILINE)
 ]
 
 regUnorderedList = [
-    re.compile('^\s*?[\\►•·■\-□^→/]\s?', re.MULTILINE)
+    re.compile('^\s*?[\\\\►•·■\-□^→/]\s?', re.MULTILINE)
 ]
 
 regFalseWords = [

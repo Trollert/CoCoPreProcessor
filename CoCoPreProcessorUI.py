@@ -9,8 +9,8 @@ from urllib.error import URLError
 import configparser
 
 # custom imports
-from functions import big_fucking_table, replace_word_list, replace_number_list, set_footnote_tables, get_false_Words, get_false_Numbers, set_headers, set_unordered_list, remove_empty_rows, merge_tables_vertically, sup_elements, set_span_headers, rename_pictures, fix_tsd_separators, break_fonds_table, wrap, first_cleanse
-from tk_functions import FancyListbox, listbox_copy, set_list, get_list, display_changelog
+from functions import big_fucking_table, replace_word_list, replace_number_list, set_footnote_tables, get_false_words, get_false_numbers, set_headers, set_unordered_list, remove_empty_rows, merge_tables_vertically, sup_elements, set_span_headers, rename_pictures, fix_tsd_separators, break_fonds_table, wrap, first_cleanse
+from tk_functions import FancyListbox, listbox_copy, set_list, set_entry_box, display_changelog
 from patterns import lSupElements
 import global_vars
 
@@ -79,7 +79,7 @@ def generate_file(tree, entryCkb):
         remove_empty_rows(tree)
     if global_vars.fMergeTablesVertically.get():
         merge_tables_vertically(tree)
-    big_fucking_table(tree)
+    # big_fucking_table(tree)
     if global_vars.fReplaceNumbers.get():
         replace_number_list(tree, listboxNumbers, global_vars.report_path)
     if global_vars.fReplaceWords.get():
@@ -162,7 +162,7 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     scrollbarNumbers.pack(side="left", fill="y")
     # CONFIG 1
     listboxNumbers.config(yscrollcommand=scrollbarNumbers.set)
-    get_false_Numbers(tree, global_vars.report_path)
+    get_false_numbers(tree, global_vars.report_path)
     for e in range(len(global_vars.lFalseNumberMatches)):
         listboxNumbers.insert(e, global_vars.lFalseNumberMatches[e])
     # ENTRY BOX NUMBERS
@@ -171,7 +171,7 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
 
     entryNumbers.pack(side='top')
     entryNumbers.bind('<Return>', partial(set_list, listboxNumbers, entryNumbers))
-    listboxNumbers.bind('<ButtonRelease-1>', partial(get_list, listboxNumbers, entryNumbers))
+    listboxNumbers.bind('<ButtonRelease-1>', partial(set_entry_box, listboxNumbers, entryNumbers))
     entryNumbers.focus_force()
 
     # FRAME 2
@@ -189,7 +189,7 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     scrollbarWords.pack(side="left", fill="y")
     # CONFIG 2
     listboxWords.config(yscrollcommand=scrollbarWords.set)
-    get_false_Words(tree, global_vars.report_path)
+    get_false_words(tree, global_vars.report_path)
     for e in range(len(global_vars.lAllFalseWordMatches)):
         listboxWords.insert(e, global_vars.lAllFalseWordMatches[e])
 
@@ -199,7 +199,7 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     entryWords.insert(0, 'Click on an item in the listbox')
     entryWords.pack(side='top')
     entryWords.bind('<Return>', partial(set_list, listboxWords, entryWords))
-    listboxWords.bind('<ButtonRelease-1>', partial(get_list, listboxWords, entryWords))
+    listboxWords.bind('<ButtonRelease-1>', partial(set_entry_box, listboxWords, entryWords))
     entryWords.focus_force()
     # buttonWords = Button(frameWords, text='REPLACE AND QUIT', command=replace_list)
     # buttonWords.pack(side='top')

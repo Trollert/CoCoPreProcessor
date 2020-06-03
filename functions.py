@@ -7,7 +7,29 @@ from textwrap import wrap as text_wrap
 import global_vars
 from patterns import *
 import os
-from dateutil.parser import parse
+from dateutil import parser
+
+# configure german for dateutil parser
+class GermanParserInfo(parser.parserinfo):
+    WEEKDAYS = [("Mo.", "Montag"),
+                ("Di.", "Dienstag"),
+                ("Mi.", "Mittwoch"),
+                ("Do.", "Donnerstag"),
+                ("Fr.", "Freitag"),
+                ("Sa.", "Samstag"),
+                ("So.", "Sonntag")]
+    MONTHS = [("Jan.", "Januar"),
+              ("Feb.", "Februar"),
+              ("März", "März"),
+              ("Apr.", "April"),
+              ("Mai", "Mai"),
+              ("Jun.", "Juni"),
+              ("Jul.", "Juli"),
+              ("Aug.", "August"),
+              ("Sept.", "September"),
+              ("Okt.", "Oktober"),
+              ("Nov.", "November"),
+              ("Dez.", "Dezember")]
 
 ######################
 # OPTIONAL FUNCTIONS #
@@ -25,7 +47,7 @@ def replace_word_list(tree, listbox, path):
     # create duplicate to not create confusion while popping
     tempAllFalseWords = global_vars.lAllFalseWordMatches
 
-    #remove unaffected entries from both lists
+    # remove unaffected entries from both lists
     for idx in reversed(range(len(tempAllFalseWords))):
         if tempAllFalseWords[idx] == corrected_list[idx]:
             tempAllFalseWords.pop(idx)
@@ -75,6 +97,7 @@ def replace_number_list(tree, listbox, path):
             if e.text:
                 e.text = e.text.replace(tempAllfalseNumbers[repEl], temp_list[repEl])
 
+
 def set_footnote_tables(tree):
     leAllTables = tree.xpath('//table')
     # check if tables are footnote tables
@@ -111,7 +134,7 @@ def set_footnote_tables(tree):
             lbFootnoteMatches.clear()
 
 
-def get_false_Numbers(tree, path):
+def get_false_numbers(tree, path):
     # check numbers in table cells
     # get all tables that are not footnote tables
     leStandardTables = tree.xpath('//table[not(@class="footnote")]')
@@ -142,16 +165,38 @@ def get_false_Numbers(tree, path):
                         if cell.text and regNumbers[i].fullmatch(str(cell.text)):
                             cell_format[i] += 1
                             break
+                    # TODO: Make this date br matching better
+                    # stupid hacky shit to check cells with br-tag for date matching
+                    cellWithoutBr = ''
+                    if cell.find('br') is not None:
+                        brAll = cell.findall('br')
+                        cellWithoutBr = cell.text
+                        for br in brAll:
+                            cellWithoutBr += ' ' + br.tail
+                    if cellWithoutBr:
+                        cellWithoutBr = re.sub(r'(\t|\n)', '', cellWithoutBr)
 
                     # if any format matched increase the table counter and dont change anything
                     if sum(cell_format):
                         iFormatCount = [a + b for a, b in zip(iFormatCount, cell_format)]
-                    elif is_date(cell.text, False):
-                        # print('Found date string in: ' + cell.text)
+                    # if br-tags where present within the cell, check that first
+                    elif cellWithoutBr and is_date(cellWithoutBr, False):
+                        # print('Found date string in: ' + cell.text_content())
+                        noSpace = re.sub('\s', '', cellWithoutBr)
+                        # if removing spaces results in a valid date format, remove them
+                        if is_date(noSpace, False):
+                            cell.text = noSpace
                         iFormatCount[-1] += 1
-                    # elif is_date(cell.text, True):
-                    #     print('Found date string in: ' + cell.text + ' \n But only in fuzzy mode.')
-                    #     print('Ignored tokens: ' + str(is_date(cell.text, True)[1]))
+                    # if not check normally
+                    elif is_date(cell.text, False):
+                        # print('Found date string in: ' + cell.text_content())
+                        noSpace = re.sub('\s', '', cell.text)
+                        # if removing spaces results in a valid date format, remove them
+                        if is_date(noSpace, False):
+                            cell.text = noSpace
+                        iFormatCount[-1] += 1
+                    elif any(reg.fullmatch(cell.text) for reg in regMisc + regHeaderContent):
+                        continue
                     # if no match could be found, try to fix it or move it to false match list
                     else:
                         if global_vars.fFixNumbers.get():
@@ -162,15 +207,19 @@ def get_false_Numbers(tree, path):
                                     cell.find('br').drop_tag()
                                 # if, after removing whitespace, the resulting format matches a number format,
                                 # remove the whitespace from tree element
-                                if any(list(reg.fullmatch(re.sub(r'\s+', '', cell.text)) for reg in regNumbers[0:4])):
+                                if any(list(reg.fullmatch(re.sub(r'\s+', '', cell.text)) for reg in regNumbers)):
                                     cell.text = re.sub(r'\s+', '', cell.text)
+                                # if you cant fix it, append to false number list
+                                else:
+                                    global_vars.lFalseNumberMatches.append(cell.text)
                             # otherwise append it to false number match list
                             else:
                                 global_vars.lFalseNumberMatches.append(cell.text)
                         else:
                             global_vars.lFalseNumberMatches.append(cell.text)
 
-def get_false_Words(tree, path):
+
+def get_false_words(tree, path):
     # check false word separations
     # get all elements that contain text (p/h1/h2/h3/td)
     # global lAllFalseWordMatches
@@ -197,7 +246,6 @@ def get_false_Words(tree, path):
     global_vars.lAllFalseWordMatches = list(dict.fromkeys(lAll))
 
 
-
 def set_headers(tree):
     # set table headers row for row
     leStandardTables = tree.xpath('//table[not(@class="footnote")]')
@@ -214,10 +262,9 @@ def set_headers(tree):
                     if any(list(reg.fullmatch(cell.text) for reg in regHeaderContent)) or is_date(cell.text, False):
                         fHeader = True
                         iHeaderRows = table.index(row)
-
                     # then compare to number matches
                     # if it matches here the function quits and reverts back to previous header row
-                    if any(list(reg.fullmatch(cell.text) for reg in regNumbers[0:4])):
+                    if any(list(reg.fullmatch(cell.text) for reg in regNumbers)):
                         # print('found number')
                         iHeaderRows = iOldHeaderRow
                         fBreakOut = True
@@ -543,13 +590,15 @@ def first_cleanse(tree):
     # replace </p><p> in tables with <br>
     # takes the longest, might find better alternative
     for td in tree.xpath('//td[count(p)>1]'):
-        i = 0
-        x = len(td)
-        for p in range(x):
-            i += 1
-            if i > x - 1:
-                break
-            td.insert(p + i, etree.Element('br'))
+        for p in td.findall('p')[:-1]:
+            p.append(etree.Element('br'))
+        # i = 0
+        # x = len(td)
+        # for p in range(x):
+        #     i += 1
+        #     if i == x:
+        #         break
+        #     td.insert(p + i, etree.Element('br'))
 
     # change all header hierarchies higher than 3 to 3
     for e in tree.xpath('//*[self::h4 or self::h5 or self::h6]'):
@@ -599,7 +648,8 @@ def first_cleanse(tree):
             sup.drop_tag()
         elif any(list(reg.fullmatch(sup.text) for reg in regUnorderedList)):
             sup.drop_tag()
-        elif not any(list(reg.fullmatch(sup.text) for reg in regFootnote)):
+        elif not any(list(reg.fullmatch(sup.text) for reg in regFootnote)) \
+                and not any(re.fullmatch(e, sup.text) for e in lSupElements):
             sup.drop_tag()
 
 
@@ -641,15 +691,20 @@ def first_cleanse(tree):
 def is_date(sInput, bFuzzy):
     if bFuzzy:
         try:
-            return parse(sInput, fuzzy_with_tokens=bFuzzy)
+            return parser.parse(sInput, fuzzy_with_tokens=bFuzzy, parserinfo=GermanParserInfo())
         except ValueError:
             return False
     else:
         try:
-            parse(sInput, fuzzy=bFuzzy)
+            parser.parse(sInput, fuzzy=False, parserinfo=GermanParserInfo())
             return True
         except ValueError:
-            return False
+            try:
+                sInput = re.sub('\s', '', sInput)
+                parser.parse(sInput, fuzzy=False, parserinfo=GermanParserInfo())
+                return True
+            except ValueError:
+                return False
 
 def get_max_columns(table):
     nrColumns = []
