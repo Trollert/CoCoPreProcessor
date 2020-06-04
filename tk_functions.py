@@ -1,6 +1,6 @@
 import global_vars
 from tkinter import Listbox, Menu, Text, Tk, ttk, Label, StringVar, Frame, Widget, Scrollbar, Canvas
-
+from functools import partial
 
 # listbox class that has the option to pop up a menu on list items with right-click
 class FancyListbox(Listbox):
@@ -8,7 +8,6 @@ class FancyListbox(Listbox):
     def __init__(self, parent, popup_menu=True,  *args, **kwargs):
         Listbox.__init__(self, parent, *args, **kwargs)
         self.popup_menu = popup_menu
-        self.last_entry = 'This is first'
         if self.popup_menu:
             self.popup_menu = Menu(self, tearoff=0)
             self.popup_menu.add_command(label="Add to user words",
@@ -58,6 +57,7 @@ class FancyListbox(Listbox):
     def add_user_word(self):
         with open(global_vars.working_folder + '/user_words.txt', 'a', encoding='UTF-8') as f:
             f.write(self.get(self.curselection()) + '\n')
+
 
 
 def display_changelog():
@@ -192,7 +192,7 @@ class ListboxEditable(object):
     """A class that emulates a listbox, but you can also edit a field"""
     list = []
     # Constructor
-    def __init__(self, master_frame, custom_list, fontLabels='Calibri', sizeLabels2=9, width=45):
+    def __init__(self, master_frame, custom_list, popup_menu=False, fontLabels='Calibri', sizeLabels2=9, width=45):
         # *** Assign the first variables ***
         # The frame that contains the ListboxEditable
         self.frameMaster = master_frame
@@ -207,28 +207,59 @@ class ListboxEditable(object):
         # remember already changed entries
         self.noChange = []
 
+        self.popup_menu = popup_menu
+
+            # self.popup_menu = Menu(self, tearoff=0)
+            # self.popup_menu.add_command(label="Add to user words",
+            #                             command=self.add_user_word)
+            # self.bind("<Button-3>", self.popup)
+            #
+
+
         # *** Create the necessary labels ***
         ind = 0
         for row in self.list:
             # Get the name of the label
             labelName = 'label' + str(ind)
+            labelMenu = 'menu' + str(ind)
             # Create the variable
             setattr(self, labelName, Label(self.frameMaster, text=self.list[ind], bg=colorNoActiveTab, fg='black',
                                            font=(self.fontLabels, self.sizeLabels), pady=2, padx=2, width=self.width,
                                            anchor='w'))
+            # create the menu
+            if self.popup_menu:
+                setattr(self, labelMenu, Menu(self.frameMaster, tearoff=0))
+                # right click open menu
+                getattr(self, labelMenu).add_command(label="Add to user words", command=partial(self.add_user_word, ind))
 
+            # command = partial(generate_file, tree, entryCkb)
             # ** Bind actions
             # 1 left click - Change background
             getattr(self, labelName).bind('<Button-1>', lambda event, a=labelName: self.changeBackground(a))
             # Double click - Convert to entry
             getattr(self, labelName).bind('<Double-1>', lambda event, a=ind: self.changeToEntry(a))
             getattr(self, labelName).bind('<Return>', lambda event, a=ind: self.changeToEntry(a))
+            # bind right click to popup menu
+            if self.popup_menu:
+                getattr(self, labelName).bind('<Button-3>', lambda event, a=ind: self.popup(event, a))
             # Move up and down
             getattr(self, labelName).bind("<Up>", lambda event, a=ind: self.up(a))
             getattr(self, labelName).bind("<Down>", lambda event, a=ind: self.down(a))
 
             # Increase the iterator
             ind = ind + 1
+
+    # *** Add user words popup *** #
+    def popup(self, event, ind):
+        labelMenu = 'menu' + str(ind)
+        try:
+            getattr(self, labelMenu).tk_popup(event.x_root, event.y_root, 0)
+        finally:
+            getattr(self, labelMenu).grab_release()
+
+    def add_user_word(self, ind):
+        with open(global_vars.working_folder + '/user_words.txt', 'a', encoding='UTF-8') as f:
+            f.write(getattr(self, 'label' + str(ind)).cget('text') + '\n')
 
     # Place
     def placeListBoxEditable(self):
