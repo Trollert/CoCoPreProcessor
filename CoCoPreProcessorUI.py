@@ -164,7 +164,7 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     # LISTBOX 2
     # this is not a real listbox, its a frame with sublabels to enable inline editing
     get_false_words(tree, global_vars.report_path)
-    listboxWords = ListboxEditable(frameWords, global_vars.lAllFalseWordMatches, popup_menu=True ,width=45)
+    listboxWords = ListboxEditable(frameWords, global_vars.lAllFalseWordMatches, popup_menu=True, width=45)
     listboxWords.placeListBoxEditable()
 
     # FRAME 3

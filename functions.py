@@ -244,7 +244,7 @@ def set_headers(tree):
                 if cell.text:
                     # first compare cell content to header content matches or date type
                     # if anything matches, set current row to header row
-                    if any(list(reg.fullmatch(cell.text) for reg in regHeaderContent)) or is_date(cell.text, False):
+                    if any(list(reg.fullmatch(cell.text) for reg in regHeaderContent)) or is_date(cell.text, False)[0]:
                         fHeader = True
                         iHeaderRows = table.index(row)
                     # then compare to number matches
