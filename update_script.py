@@ -13,13 +13,17 @@ currentDirectory = os.getcwd()
 for file in url:
     basename = os.path.basename(urlparse(file).path)
     urlretrieve(file, filename=currentDirectory + '/' + basename)
+    print('Imported ' + basename + ' into working directory.')
 
 if not os.path.exists(currentDirectory + '/user_words.txt'):
     open(currentDirectory + '/user_words.txt', 'a').close()
+    print('Created user_words.txt because none was found!')
 
 Config = configparser.ConfigParser()
 if os.path.exists(os.getcwd() + '/preproc_config.ini'):
     Config.read('preproc_config.ini')
-    Config['VERSION']['pre_proc_version'] = urlopen('https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/_version_.txt').read().decode('utf-8')
+    _version_ = urlopen('https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/_version_.txt').read().decode('utf-8')
+    Config['VERSION']['pre_proc_version'] = _version_
+    print('Updated config.ini to new Version: ' + _version_)
     with open(os.getcwd() + '/preproc_config.ini', 'w') as configfile:
         Config.write(configfile)
