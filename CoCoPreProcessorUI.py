@@ -2,14 +2,14 @@ import sys
 import re
 import os
 from functools import partial
-from tkinter import filedialog, Label, Frame, Entry, Button, Checkbutton
+from tkinter import filedialog, Label, Frame, Entry, Button, Checkbutton, messagebox
 from lxml import html
 from urllib.request import urlopen, urlretrieve
 from urllib.error import URLError
 import configparser
 
 # custom imports
-from functions import big_fucking_table, replace_word_list, replace_number_list, set_footnote_tables, get_false_words, get_false_numbers, set_headers, set_unordered_list, remove_empty_rows, merge_tables_vertically, sup_elements, set_span_headers, rename_pictures, fix_tsd_separators, break_fonds_table, first_cleanse
+from functions import split_rowspan, big_fucking_table, replace_word_list, replace_number_list, set_footnote_tables, get_false_words, get_false_numbers, set_headers, set_unordered_list, remove_empty_rows, merge_tables_vertically, sup_elements, set_span_headers, rename_pictures, fix_tsd_separators, break_fonds_table, first_cleanse
 from tk_functions import display_changelog, VerticalScrolledFrame, ListboxEditable
 from patterns import lSupElements
 import global_vars
@@ -60,52 +60,52 @@ with open(global_vars.tk.filename, 'r', encoding='UTF-8') as fi, \
         open('tmp.htm', 'w', encoding='UTF-8') as fo:
     new_str = fi.read()
     new = new_str.replace('CO2', 'CO<sub>2</sub>')  # replaces every occurrence of CO2
-
     new = new.replace('—', '-')  # replaces en dash with normal dash
-    new = new.replace('\u2013', '-')  # replaces en dash with normal dash
+    # new = new.replace('\u2013', '-')  # replaces en dash with normal dash
     new = new.replace('&nbsp;', ' ')  # replaces non breaking spaces
     # REMOVE WRONG LINE BREAK HERE BECAUSE I CANT FIGURE OUT HOW TO DO IT WITHIN THE PARSER
     new = re.sub(r"(?sm)(?<=[a-zöüä\,;\xa0])\s*?</p>\s*?<p>(?=[a-zöäü][^)])", ' ', new)
     fo.write(new)
     fo.close()
 
+
     ################
     # PARSING FILE #
     ################
-
-
-def generate_file(tree, entryCkb):
-    if global_vars.fRemoveEmptyRows.get():
-        remove_empty_rows(tree)
-    if global_vars.fMergeTablesVertically.get():
-        merge_tables_vertically(tree)
-    # big_fucking_table(tree)
-    if global_vars.fReplaceNumbers.get():
-        replace_number_list(tree, listboxNumbers2.return_list(), global_vars.lFalseNumberMatches, global_vars.report_path)
-    if global_vars.fReplaceWords.get():
-        replace_word_list(tree, listboxWords.return_list(), global_vars.lAllFalseWordMatches, global_vars.report_path)
-    if global_vars.fSetUnorderedList.get():
-        set_unordered_list(tree)
-    if global_vars.fFootnotetables.get():
-        set_footnote_tables(tree)
-    # if fSplitRowSpan.get():
-    #     split_rowspan()
-    if global_vars.fSpanHeaders.get():
+def generate_file(entryCkb):
+    if global_vars.bRemoveEmptyRows.get():
+        remove_empty_rows()
+    if global_vars.bMergeTablesVertically.get():
+        merge_tables_vertically()
+    if global_vars.bSplitRowspan.get():
+        split_rowspan()
+    if global_vars.bReplaceNumbers.get():
+        replace_number_list(listboxNumbers.return_list(), global_vars.lFalseNumberMatches)
+    if global_vars.bReplaceWords.get():
+        replace_word_list(listboxWords.return_list(), global_vars.lAllFalseWordMatches)
+    if global_vars.bSetUnorderedList.get():
+        set_unordered_list()
+    if global_vars.bFootnotetables.get():
+        set_footnote_tables()
+    if global_vars.bSpanHeaders.get():
         set_span_headers(global_vars.leSpanHeaders)
-    if global_vars.fSetHeaders.get():
-        set_headers(tree)
+    if global_vars.bSetHeaders.get():
+        set_headers()
     if global_vars.fIsFondsReport.get():
-        if global_vars.fFixTsdSeparators.get():
-            fix_tsd_separators(tree, ',')
-        if global_vars.fBreakFondsTable.get():
-            break_fonds_table(tree)
-    if global_vars.fRenamePictures.get():
-        rename_pictures(tree)
+        if global_vars.bFixTsdSeparators.get():
+            fix_tsd_separators(',')
+        if global_vars.bBreakFondsTable.get():
+            break_fonds_table()
+    if global_vars.bRenamePictures.get():
+        rename_pictures()
+
+    if global_vars.bFoundError:
+        messagebox.showwarning('Warning', '\n'.join(global_vars.lsErrorLog))
     # wrap all table contents in p-tags
     # wrap(tree, "p")
     # write to new file in source folder
-    tree.write(os.path.splitext(global_vars.tk.filename)[0] + '_modified.htm', encoding='UTF-8', method='html')
-    if global_vars.fSupElements.get():
+    global_vars.tree.write(os.path.splitext(global_vars.tk.filename)[0] + '_modified.htm', encoding='UTF-8', method='html')
+    if global_vars.bSupElements.get():
         sup_elements(os.path.splitext(global_vars.tk.filename)[0] + '_modified.htm', entryCkb)
 
     # clean up user_words.txt
@@ -121,8 +121,8 @@ def generate_file(tree, entryCkb):
 
 
 with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
-    tree = html.parse(input_file)
-    tree = first_cleanse(tree)
+    global_vars.tree = html.parse(input_file)
+    first_cleanse()
     ############
     # BUILD UI #
     ############
@@ -149,13 +149,13 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
 
     # FRAME 1
     # this is not a common frame, it enables scrolling within a frame
-    frameNumbers2 = VerticalScrolledFrame(global_vars.tk, width=150, height=50, borderwidth=2, relief="groove")
-    frameNumbers2.pack(fill='y', side='left')
+    frameNumbers = VerticalScrolledFrame(global_vars.tk, width=150, height=50, borderwidth=2, relief="groove")
+    frameNumbers.pack(fill='y', side='left')
     # LISTBOX 2
     # this is not a real listbox, its a frame with sublabels to enable inline editing
-    get_false_numbers(tree, global_vars.report_path)
-    listboxNumbers2 = ListboxEditable(frameNumbers2, global_vars.lFalseNumberMatches, width=25)
-    listboxNumbers2.placeListBoxEditable()
+    get_false_numbers(global_vars.report_path)
+    listboxNumbers = ListboxEditable(frameNumbers, global_vars.lFalseNumberMatches, width=25)
+    listboxNumbers.placeListBoxEditable()
 
     # FRAME 2
     # this is not a common frame, it enables scrolling within a frame
@@ -163,22 +163,23 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     frameWords.pack(fill='y', side='left', expand=True)
     # LISTBOX 2
     # this is not a real listbox, its a frame with sublabels to enable inline editing
-    get_false_words(tree, global_vars.report_path)
+    get_false_words(global_vars.report_path)
     listboxWords = ListboxEditable(frameWords, global_vars.lAllFalseWordMatches, popup_menu=True, width=45)
     listboxWords.placeListBoxEditable()
 
     # FRAME 3
     frameChecks = Frame(global_vars.tk, width=25, height=50)
     frameChecks.pack(fill='y', side='left')
-    ckbHeaders = Checkbutton(frameChecks, anchor='w', text='convert headers', variable=global_vars.fSetHeaders)
-    ckbFootnotes = Checkbutton(frameChecks, anchor='w', text='convert footnotes', variable=global_vars.fFootnotetables)
-    ckbEmptyRows = Checkbutton(frameChecks, anchor='w', text='remove empty rows', variable=global_vars.fRemoveEmptyRows)
-    ckbWords = Checkbutton(frameChecks, anchor='w', text='replace fixed words', variable=global_vars.fReplaceWords)
-    ckbNumbers = Checkbutton(frameChecks, anchor='w', text='replace fixed numbers', variable=global_vars.fReplaceNumbers)
+    ckbHeaders = Checkbutton(frameChecks, anchor='w', text='convert headers', variable=global_vars.bSetHeaders)
+    ckbFootnotes = Checkbutton(frameChecks, anchor='w', text='convert footnotes', variable=global_vars.bFootnotetables)
+    ckbEmptyRows = Checkbutton(frameChecks, anchor='w', text='remove empty rows', variable=global_vars.bRemoveEmptyRows)
+    ckbWords = Checkbutton(frameChecks, anchor='w', text='replace fixed words', variable=global_vars.bReplaceWords)
+    ckbNumbers = Checkbutton(frameChecks, anchor='w', text='replace fixed numbers', variable=global_vars.bReplaceNumbers)
     ckbVertMerge = Checkbutton(frameChecks, anchor='w', text='vertically merge tables (§§)',
-                               variable=global_vars.fMergeTablesVertically)
-    ckbSpanHeaders = Checkbutton(frameChecks, anchor='w', text='analyze heading (BETA)', variable=global_vars.fSpanHeaders)
-    ckbRenamePics = Checkbutton(frameChecks, anchor='w', text='rename .png to .jpg', variable=global_vars.fRenamePictures)
+                               variable=global_vars.bMergeTablesVertically)
+    ckbSpanHeaders = Checkbutton(frameChecks, anchor='w', text='analyze heading (BETA)', variable=global_vars.bSpanHeaders)
+    ckbRenamePics = Checkbutton(frameChecks, anchor='w', text='rename .png to .jpg', variable=global_vars.bRenamePictures)
+    ckbSplitRowspan = Checkbutton(frameChecks, anchor='w', text='split row span', variable=global_vars.bSplitRowspan)
 
     ckbHeaders.pack(side='top', anchor='w')
     ckbFootnotes.pack(side='top', anchor='w')
@@ -188,13 +189,14 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     ckbVertMerge.pack(side='top', anchor='w')
     ckbSpanHeaders.pack(side='top', anchor='w')
     ckbRenamePics.pack(side='top', anchor='w')
+    ckbSplitRowspan.pack(side='top', anchor='w')
 
     # Sup check button
     labelCkb = Label(frameChecks, text='\nSuperscript elements')
     labelCkb.pack(side='top', anchor='w')
     frameCkb = Frame(frameChecks, width=25, height=5)
     frameCkb.pack(side='top')
-    ckbSup = Checkbutton(frameCkb, anchor='w', variable=global_vars.fSupElements)
+    ckbSup = Checkbutton(frameCkb, anchor='w', variable=global_vars.bSupElements)
     ckbSup.pack(side='left', anchor='w')
     entryCkb = Entry(frameCkb, width=23, )
     entryCkb.insert(0, ', '.join(lSupElements))
@@ -203,14 +205,14 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     if global_vars.fIsFondsReport.get():
         fondsLabel = Label(frameChecks, text='Fonds report detected', font=('Arial', 9, 'bold'), fg='red')
         fondsLabel.pack(side='top')
-        ckbTsdFix = Checkbutton(frameChecks, anchor='w', text='fix tsd separators', variable=global_vars.fFixTsdSeparators)
+        ckbTsdFix = Checkbutton(frameChecks, anchor='w', text='fix tsd separators', variable=global_vars.bFixTsdSeparators)
         ckbBreakFondsTable = Checkbutton(frameChecks, anchor='w', text='break Vermögensaufstellung',
-                                         variable=global_vars.fBreakFondsTable)
+                                         variable=global_vars.bBreakFondsTable)
         ckbTsdFix.pack(side='top', anchor='w')
         ckbBreakFondsTable.pack(side='top', anchor='w')
 
     buttonGenerate = Button(frameChecks, height=3, width=20, bd=2, fg='white', font=('Arial', 15),
-                            text='GENERATE FILE \n AND QUIT', command=partial(generate_file, tree, entryCkb),
+                            text='GENERATE FILE \n AND QUIT', command=partial(generate_file, entryCkb),
                             bg='dark green')
     buttonGenerate.pack(side='bottom')
     global_vars.tk.mainloop()

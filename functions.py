@@ -34,12 +34,12 @@ class GermanParserInfo(parser.parserinfo):
 # OPTIONAL FUNCTIONS #
 ######################
 
-def replace_word_list(tree, replace_list, old_list, path):
+def replace_word_list(replace_list, old_list):
     """
     replace the corrected listbox items with their counterparts
     """
 
-    leTextElements = tree.xpath('.//*[normalize-space(text())]')
+    leTextElements = global_vars.tree.xpath('.//*[normalize-space(text())]')
     # get a list of listbox lines
     corrected_list = list(replace_list)
 
@@ -61,8 +61,8 @@ def replace_word_list(tree, replace_list, old_list, path):
                 e.text = e.text.replace(tempAllFalseWords[repEl], corrected_list[repEl])
 
 
-def replace_number_list(tree, replace_list, old_list, path):
-    leNumberElements = tree.xpath('//table[not(@class="footnote")]/tr/td[normalize-space(text())]')
+def replace_number_list(replace_list, old_list):
+    leNumberElements = global_vars.tree.xpath('//table[not(@class="footnote")]/tr/td[normalize-space(text())]')
     # get a list of listbox lines
     temp_list = replace_list
     tempAllfalseNumbers = old_list
@@ -73,15 +73,6 @@ def replace_number_list(tree, replace_list, old_list, path):
 
     # create file to safe already replaced numbers in case of error
     save_replacements(dict(zip(tempAllfalseNumbers, temp_list)), '/save_numbers.pkl')
-    # save_dict = dict(zip(tempAllfalseNumbers, temp_list))
-    # if os.path.exists(path + '/save_numbers.pkl'):
-    #     save_file = open(path + '/save_numbers.pkl', 'rb')
-    #     old_dict = pickle.load(save_file)
-    #     save_dict = {**old_dict, **save_dict}
-    #     save_file.close()
-    # save_file = open(path + '/save_numbers.pkl', 'wb')
-    # pickle.dump(save_dict, save_file)
-    # save_file.close()
 
     for e in leNumberElements:
         for repEl in range(len(temp_list)):
@@ -89,8 +80,8 @@ def replace_number_list(tree, replace_list, old_list, path):
                 e.text = e.text.replace(tempAllfalseNumbers[repEl], temp_list[repEl])
 
 
-def set_footnote_tables(tree):
-    leAllTables = tree.xpath('//table')
+def set_footnote_tables():
+    leAllTables = global_vars.tree.xpath('//table')
     # check if tables are footnote tables
     for table in range(len(leAllTables)):
         leFirstColCells = []
@@ -120,15 +111,16 @@ def set_footnote_tables(tree):
                 for eCell in leFirstColCells:
                     etree.SubElement(eCell, 'a', id='a' + str(table + 1) + str(leFirstColCells.index(eCell)))
                 leAllTables[table].set('class', 'footnote')
+
             # clear lists
             leFirstColCells.clear()
             lbFootnoteMatches.clear()
 
 
-def get_false_numbers(tree, path):
+def get_false_numbers(path):
     # check numbers in table cells
     # get all tables that are not footnote tables
-    leStandardTables = tree.xpath('//table[not(@class="footnote")]')
+    leStandardTables = global_vars.tree.xpath('//table[not(@class="footnote")]')
     # if save numbers file exists, replace matches before finding new ones
     if os.path.exists(path + '/save_numbers.pkl'):
         save_file = open(path + '/save_numbers.pkl', 'rb')
@@ -183,7 +175,7 @@ def get_false_numbers(tree, path):
                         continue
                     # if no match could be found, try to fix it or move it to false match list
                     else:
-                        if global_vars.fFixNumbers.get():
+                        if global_vars.bFixNumbers.get():
                             # if cell only contains number tokens, try to fix format
                             if re.fullmatch('[0-9,. \-+]*', cell.text_content()):
                                 # drop br-tag if one is found
@@ -204,12 +196,12 @@ def get_false_numbers(tree, path):
     global_vars.lFalseNumberMatches = list(dict.fromkeys(global_vars.lFalseNumberMatches))
 
 
-def get_false_words(tree, path):
+def get_false_words(path):
     # check false word separations
     # get all elements that contain text (p/h1/h2/h3/td)
     # global lAllFalseWordMatches
     lAll = []
-    leTextElements = tree.xpath('.//*[normalize-space(text())]')
+    leTextElements = global_vars.tree.xpath('.//*[normalize-space(text())]')
     if os.path.exists(path + '/save_words.pkl'):
         save_file = open(path + '/save_words.pkl', 'rb')
         save_dict = pickle.load(save_file)
@@ -231,9 +223,9 @@ def get_false_words(tree, path):
     global_vars.lAllFalseWordMatches = list(dict.fromkeys(lAll))
 
 
-def set_headers(tree):
+def set_headers():
     # set table headers row for row
-    leStandardTables = tree.xpath('//table[not(@class="footnote")]')
+    leStandardTables = global_vars.tree.xpath('//table[not(@class="footnote")]')
     for table in leStandardTables:
         fHeader = False
         fBreakOut = False
@@ -290,11 +282,11 @@ def set_headers(tree):
 
 # set all unordered list elements according to regex matches, only for > 1 matches
 
-def set_unordered_list(tree):
+def set_unordered_list():
     # find and set unordered lists
     leDashCandidates = []
     iDashCount = 0
-    for p in tree.xpath('//body/p'):
+    for p in global_vars.tree.xpath('//body/p'):
         # check if beginning of paragraph matches safe list denominators
         if p.text:
             # if not check if "- " matches
@@ -316,16 +308,69 @@ def set_unordered_list(tree):
 
 # remove empty rows
 
-def remove_empty_rows(tree):
+def remove_empty_rows():
     # remove empty table rows
-    for row in tree.xpath('//tr[* and not(*[node()])]'):
+    for row in global_vars.tree.xpath('//tr[* and not(*[node()])]'):
         row.getparent().remove(row)
 
 
-# merge marked tables vertically
+# this function is very complex because of the nature of tables and cell-merging in html
+# it iterates through the columns, therefor indices and range() is used, not the elementwise iteration
+# it creates a matrix in which the offsets of all td-cells are documented depending on the colspans within the same
+# row, including new colspans from rowspan cells
+def split_rowspan():
+    # get all tables that have at least one td-attribute of rowspan with a value greater than 1
+    rowspanTables = global_vars.tree.xpath('//table[tr/td[@rowspan > 1]]')
+    for table in rowspanTables:
+        # create 0-matrix of the raw table dimensions
+        matrixColspan = [[0 for x in range(get_max_columns(table))] for y in range(len(table))]
+        # list to remember already processed cells
+        cellHistory = []
+        # iterate td
+        for i in range(get_max_columns(table)):
+            # print('COL: ' + str(i+1))
+            # iterate tr
+            for j in range(len(table)):
+                # print('now cell: ' + str(j + 1) + ' ; ' + str(i + 1 + matrixColspan[j][i]))
+                # select cell depending on indices and the offset given by matrix
+                cell = table.xpath('./tr[' + str(j + 1) + ']/td[' + str(i + 1 + matrixColspan[j][i]) + ']')
+                # if cell was already processed skip to next cell
+                if cell in cellHistory:
+                    continue
+                # if not append it to history
+                cellHistory.append(cell)
+                # get number of colspan/rowspan if any are present in td tag
+                nrCS = cell[0].get('colspan')
+                nrRS = cell[0].get('rowspan')
+                # print('cell : ' + cell[0].text_content() + ' : has row span: ' + str(nrRS) + ' col span: ' + str(nrCS))
+                # if colspan is present, change offset in matrix
+                if nrCS is not None and int(nrCS) > 1:
+                    # print(matrixColspan)
+                    # offset is set, beginning at current cell, starting with 0 and decreasing to negative colspan value + 1
+                    for c in range(int(nrCS)):
+                        matrixColspan[j][i + c] += -c
+                    # for m in range(i + int(nrCS), len(matrixColspan[j])):
+                    # change the offset of the remaining cells to maximum negative offset given from colspan value + 1
+                    matrixColspan[j][i + int(nrCS):] = [a - int(nrCS) + 1 for a in matrixColspan[j][i + int(nrCS):]]
+                    # print(matrixColspan)
+                # if cell has rowspan insert corresponding number of empty cells in the following rows
+                if nrRS is not None and int(nrRS) > 1:
+                    for nrRowspan in range(1, int(nrRS)):
+                        # if cell[0].get('colspan') is not None and int(cell[0].get('colspan')) > 1:
+                        # if cell has colspan, insert empty cell with equal rowspan attribute
+                        if nrCS is not None and int(nrCS) > 1:
+                            table[j + nrRowspan].insert(i + matrixColspan[j + nrRowspan][i], etree.Element('td', attrib={'colspan': nrCS}))
+                            # print('Inserted new cell in col: ' + str(i + matrixColspan[j + nrRowspan][i]) + ' in row: ' + str(j + nrRowspan))
+                        else:
+                            table[j + nrRowspan].insert(i + matrixColspan[j + nrRowspan][i], etree.Element('td'))
+                            # print('Inserted new cell in col: ' + str(i + matrixColspan[j + nrRowspan][i]) + ' in row: ' + str(j + nrRowspan))
+                    # finally remove the rowspan attribute
+                    del cell[0].attrib['rowspan']
 
-def merge_tables_vertically(tree):
-    leMergeTables = tree.xpath(
+
+# merge marked tables vertically
+def merge_tables_vertically():
+    leMergeTables = global_vars.tree.xpath(
         '//table[tr[1]/td[1][starts-with(normalize-space(text()),"§§")] or tr[last()]/td[last()][starts-with(normalize-space(text()),"§§")]]')
     leToMerge = []
     fContinuedMerge = False
@@ -340,10 +385,10 @@ def merge_tables_vertically(tree):
                 # is merge list empty?
                 if not leToMerge:
                     # BUG
-                    print('Error in marker start or end position! Check the markers in ABBYY!\n'
-                          'Error found in table with start marker: ' + str(table.xpath('./tr[1]/td[1]/text()')) + '\n'
-                                                                                                                  'and end marker: ' + str(
-                        table.xpath('./tr[last()]/td[last()]/text()')))
+                    add_to_errorlog('Error in marker start or end position! Check the markers in ABBYY!\n'
+                            'Error found in table with start marker: ' + str(table.xpath('./tr[1]/td[1]/text()')) + '\n'
+                            'and end marker: '
+                            + str(table.xpath('./tr[last()]/td[last()]/text()')))
                     fContinuedMerge = False
                     global_vars.bFoundError = True
                     continue
@@ -356,7 +401,7 @@ def merge_tables_vertically(tree):
         elif fStartMarker:
             if not leToMerge:
                 # BUG
-                print('Error in start marker position! Check the markers in ABBYY!\n'
+                add_to_errorlog('Error in start marker position! Check the markers in ABBYY!\n'
                       'Error found in table with start marker: ' + str(table.xpath('./tr[1]/td[1]/text()')))
                 fContinuedMerge = False
                 global_vars.bFoundError = True
@@ -365,7 +410,7 @@ def merge_tables_vertically(tree):
                 leToMerge.append(table)
                 fContinuedMerge = False
         else:
-            print('No markers detected, this shouldnt happen, report this bug!')
+            add_to_errorlog('No markers detected, this shouldnt happen, report this bug!')
             global_vars.bFoundError = True
             break
         # next table included in merge?
@@ -377,7 +422,7 @@ def merge_tables_vertically(tree):
             for mTable in leToMerge:
                 iColNumbers.append(get_max_columns(mTable))
                 # get indices of tables to merge
-                iTableIndices.append(tree.find('body').index(mTable))
+                iTableIndices.append(global_vars.tree.find('body').index(mTable))
             # do all merging candidates have the same number of columns?
             if len(set(iColNumbers)) == 1:
                 # before merging, check whether all the tables in this merging process are consecutive tables within
@@ -385,7 +430,7 @@ def merge_tables_vertically(tree):
                 # if not only raise warning
                 # TODO: raise warning and give user option to not proceed
                 if iTableIndices != list(range(min(iTableIndices), max(iTableIndices)+1)):
-                    print('You try to merge tables that are not consecutive within the html.\n'
+                    add_to_errorlog('You try to merge tables that are not consecutive within the html.\n'
                           'Please check the table set beginning with'
                           ' ' + str(leToMerge[0].xpath('./tr[last()]/td[last()]/text()')) + ' as end marker, ' +
                           str(len(leToMerge)) + ' subtables and ' +
@@ -413,15 +458,15 @@ def merge_tables_vertically(tree):
                     # remove now empty table
                     leToMerge[i].getparent().remove(leToMerge[i])
             else:
-                print(
+                add_to_errorlog(
                     'You try to merge tables with different amount of table columns. Fix this in ABBYY or CoCo! Tables will not be merged!')
-                print('Table end marker: ' + str(leToMerge[0].xpath('./tr[last()]/td[last()]/text()')))
-                print('The number of columns within the subtables are: ' + str(iColNumbers))
+                add_to_errorlog('Table end marker: ' + str(leToMerge[0].xpath('./tr[last()]/td[last()]/text()')))
+                add_to_errorlog('The number of columns within the subtables are: ' + str(iColNumbers))
                 global_vars.bFoundError = True
             leToMerge = []
 
 
-def sup_elements(path, entry):
+def sup_elements(entry, path):
     with open(path, 'r', encoding='UTF-8') as fi, open('temp.htm', 'w', encoding='UTF-8') as fo:
         rawText = fi.read()
         fi.close()
@@ -442,7 +487,7 @@ def set_span_headers(lSpanHeaders):
         span.tag = 'h3'
 
 
-def rename_pictures(tree):
+def rename_pictures():
     picFolder = os.path.splitext(global_vars.tk.filename)[0] + '_files'
     if os.path.exists(picFolder):
         for filename in os.listdir(picFolder):
@@ -450,16 +495,16 @@ def rename_pictures(tree):
             if ext == ".png":
                 # rename reference in htm file
                 # get 'img' tag
-                ePngPic = tree.xpath('//img[@src="' + os.path.basename(picFolder) + '/' + filename + '"]')
+                ePngPic = global_vars.tree.xpath('//img[@src="' + os.path.basename(picFolder) + '/' + filename + '"]')
                 # rename attribute "src"
                 ePngPic[0].attrib['src'] = os.path.basename(picFolder) + '/' + base_file + '.jpg'
                 # rename picture file
                 os.rename(picFolder + '/' + filename, picFolder + '/' + base_file + ".jpg")
 
 
-def fix_tsd_separators(tree, decSeparator):
+def fix_tsd_separators(decSeparator):
     # exclude header and leftmost column from reformatting
-    for table in tree.xpath('//table'):
+    for table in global_vars.tree.xpath('//table[not(@class="footnote")]'):
         leNumCells = table.xpath('.//tbody/tr/td[position() > 1]')
         for cell in leNumCells:
             if cell.text is not None:
@@ -474,11 +519,11 @@ def fix_tsd_separators(tree, decSeparator):
                     # reformat string to match float format
                     # reformat float to insert thousand separators and preserve the nr of decimal places
                     # replace tsd separators to chosen separator
-                    cell.text ='{:,.{prec}f}'.format(float(noSpace.replace(',', '.')), prec=decPlaces).replace(',', ' ').replace('.', decSeparator)
+                    cell.text = '{:,.{prec}f}'.format(float(noSpace.replace(',', '.')), prec=decPlaces).replace(',', ' ').replace('.', decSeparator)
 
 
-def break_fonds_table(tree):
-    eFondsTable = tree.xpath(
+def break_fonds_table():
+    eFondsTable = global_vars.tree.xpath(
         '/html/body/*[starts-with(normalize-space(text()),"Vermögensaufstellung")]/following-sibling::table[1]')
     for table in eFondsTable:
         leTitleCells = table.xpath('.//td[position() = 1]')
@@ -506,8 +551,9 @@ def break_fonds_table(tree):
                     brTag.tail = tail
                     cell.append(brTag)
 
-def big_fucking_table(tree):
-    secTables = tree.xpath('//table[count(tr[1]/td) = 5]')
+
+def big_fucking_table():
+    secTables = global_vars.tree.xpath('//table[count(tr[1]/td) = 5]')
     for table in secTables:
         for row in table:
             brContent = []
@@ -548,6 +594,7 @@ def big_fucking_table(tree):
 #
 #         # for tr in table.xpath('./tr[//td[@rowspan]]'):
 
+
 # wrap table cells in p tags
 def wrap(root, tag):
     # find <td> elements that do not have a <p> element
@@ -567,43 +614,37 @@ def wrap(root, tag):
         # Set the new <p> element as the cell's child
         cell.append(e)
 
-def first_cleanse(tree):
+# first cleaning of the ABBYY htm before the parsing process really starts
+def first_cleanse():
 
     #################
     #  PREPARATIONS #
     #################
     # replace </p><p> in tables with <br>
     # takes the longest, might find better alternative
-    for td in tree.xpath('//td[count(p)>1]'):
+    for td in global_vars.tree.xpath('//td[count(p)>1]'):
         for p in td.findall('p')[:-1]:
             p.append(etree.Element('br'))
-        # i = 0
-        # x = len(td)
-        # for p in range(x):
-        #     i += 1
-        #     if i == x:
-        #         break
-        #     td.insert(p + i, etree.Element('br'))
 
     # change all header hierarchies higher than 3 to 3
-    for e in tree.xpath('//*[self::h4 or self::h5 or self::h6]'):
+    for e in global_vars.tree.xpath('//*[self::h4 or self::h5 or self::h6]'):
         e.tag = 'h3'
 
     # remove sup/sub tags from headlines
-    for e in tree.xpath('//*[self::h1 or self::h2 or self::h3]/*[self::sup or self::sub]'):
+    for e in global_vars.tree.xpath('//*[self::h1 or self::h2 or self::h3]/*[self::sup or self::sub]'):
         e.drop_tag()
 
     # remove p tags in tables
-    for p in tree.xpath('//table//p'):
+    for p in global_vars.tree.xpath('//table//p'):
         # print(p.text)
         p.drop_tag()
 
     # check if report is a fonds report
-    if tree.xpath('/html/body/*[starts-with(normalize-space(text()),"Vermögensaufstellung")]'):
+    if global_vars.tree.xpath('/html/body/*[starts-with(normalize-space(text()),"Vermögensaufstellung")]'):
         global_vars.fIsFondsReport.set(value=1)
         # remove all multiple occurences of dots and ' )'
         # hacky and not that versatile as of now
-        for e in tree.xpath('.//table//*[text()[not(normalize-space()="")]]'):
+        for e in global_vars.tree.xpath('.//table//*[text()[not(normalize-space()="")]]'):
             e.text = re.sub('\s*?\.{2,}', '', e.text)
             e.text = re.sub(' \)', ')', e.text)
             e.text = re.sub('\)\s*?\.', ')', e.text)
@@ -615,20 +656,24 @@ def first_cleanse(tree):
                         i.tail = re.sub('\)\s*?\.', ')', i.tail)
 
     # strip all unnecessary white space
-    for td in tree.xpath('//table//td'):
+    # nlist = global_vars.tree.xpath('normalize-space(//td)')
+    # print(nlist)
+    for td in global_vars.tree.xpath('//table//td'):
         if td.text is not None:
             td.text = td.text.strip()
+        if td.tail is not None:
+            td.tail = td.tail.strip()
 
     # remove li tags in td elements
-    for li in tree.xpath('//td/li'):
+    for li in global_vars.tree.xpath('//td/li'):
         li.drop_tag()
 
-    for tag in tree.xpath('//*[@class]'):
+    for tag in global_vars.tree.xpath('//*[@class]'):
         # For each element with a class attribute, remove that class attribute
         tag.attrib.pop('class')
 
     # remove sup/sub tags in unordered list candidates and for non footnote candidates
-    for sup in tree.xpath('//*[self:: sup or self::sub]'):
+    for sup in global_vars.tree.xpath('//*[self:: sup or self::sub]'):
         if sup.text is None:
             sup.drop_tag()
         elif any(list(reg.fullmatch(sup.text) for reg in regUnorderedList)):
@@ -637,12 +682,11 @@ def first_cleanse(tree):
                 and not any(re.fullmatch(e, sup.text) for e in lSupElements):
             sup.drop_tag()
 
-
     # execute only if a formatted html file is used (ABBYY export formatted file)
-    if tree.xpath('/html/head/style'):
+    if global_vars.tree.xpath('/html/head/style'):
         print('Found formatted File')
         # select all span tags that are the only thing present in a p tag (heading candidates)
-        for span in tree.xpath('//*[self::span]/ancestor::p'):
+        for span in global_vars.tree.xpath('//*[self::span]/ancestor::p'):
             # check if tag contains more than just the span tag
             # if so skip it
             if span.text is None:
@@ -651,7 +695,7 @@ def first_cleanse(tree):
                 if len(span) == 1:
                     global_vars.leSpanHeaders.append(span)
 
-        for br in tree.xpath('//br[@*]'):
+        for br in global_vars.tree.xpath('//br[@*]'):
             br.drop_tag()
 
     # remove unwanted tags
@@ -663,7 +707,7 @@ def first_cleanse(tree):
         page_structure=False,
         inline_style=True
     )
-    tree = cleaner.clean_html(tree)
+    tree = cleaner.clean_html(global_vars.tree)
     return tree
 
 
@@ -674,32 +718,33 @@ def first_cleanse(tree):
 # returns TRUE if input string can be interpreted as a date
 # if fuzzy is true, ignore unknown tokens in string
 def is_date(sInput, bFuzzy):
-    if bFuzzy:
+    try:
+        parser.parse(sInput, fuzzy=bFuzzy, parserinfo=GermanParserInfo())
+        return [True, False]
+    except ValueError:
         try:
-            return parser.parse(sInput, fuzzy_with_tokens=bFuzzy, parserinfo=GermanParserInfo())
+            sInput = re.sub('\s', '', sInput)
+            parser.parse(sInput, fuzzy=bFuzzy, parserinfo=GermanParserInfo())
+            return [True, True]
         except ValueError:
-            return False
-    else:
-        try:
-            parser.parse(sInput, fuzzy=False, parserinfo=GermanParserInfo())
-            return [True, False]
-        except ValueError:
-            try:
-                sInput = re.sub('\s', '', sInput)
-                parser.parse(sInput, fuzzy=False, parserinfo=GermanParserInfo())
-                return [True, True]
-            except ValueError:
-                return [False]
+            return [False]
 
 
+# returns the maximum number of columns in a table as int
 def get_max_columns(table):
-    nrColumns = []
     # get max number of columns in a row
-    for row in table:
-        nrColumns.append(row.xpath('./td'))
-    return max(len(x) for x in nrColumns)
+    firstRow = table.xpath('./tr[1]/td')
+    nrCols = 0
+    # if there is a colspan in the row, increase by colspan value
+    for td in firstRow:
+        if td.get('colspan') is not None:
+            nrCols += int(td.get('colspan'))
+        else:
+            nrCols += 1
+    return nrCols
 
 
+# save repl_dict to report folder with name
 def save_replacements(repl_dict, name):
     if os.path.exists(global_vars.report_path + name):
         save_file = open(global_vars.report_path + name, 'rb')
@@ -709,3 +754,7 @@ def save_replacements(repl_dict, name):
     save_file = open(global_vars.report_path + name, 'wb')
     pickle.dump(repl_dict, save_file)
     save_file.close()
+
+
+def add_to_errorlog(text):
+    global_vars.lsErrorLog.append(text)

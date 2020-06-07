@@ -1,4 +1,16 @@
 #########################################
+#             Version 0.1.3:            #
+#########################################
+
+- added rowspan split function
+
+    - a function is now available that splits vertically merged table cells and fills the table with empty cells
+      in the respective places
+    - this complies with the table cell split function in CoCo
+    - even works for cluttered Table with many vertically and horizontally merged cells, while keeping the colspan
+      elements
+
+#########################################
 #             Version 0.1.2:            #
 #########################################
 
