@@ -728,9 +728,9 @@ def is_date(sInput, bFuzzy):
             sInput = re.sub('\s', '', sInput)
             parser.parse(sInput, fuzzy=bFuzzy, parserinfo=GermanParserInfo())
             return [True, True]
-        except ValueError:
+        except:
             return [False]
-    except calendar.IllegalMonthError:
+    except:
         return [False]
 
 
