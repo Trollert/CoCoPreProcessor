@@ -208,8 +208,9 @@ def get_false_words(path):
         save_file.close()
 
         for e in leTextElements:
-            for old, new in save_dict.items():
-                e.text = e.text.replace(old, new)
+            if e.text:
+                for old, new in save_dict.items():
+                    e.text = e.text.replace(old, new)
     # print(textElements)
     for e in leTextElements:
         # regex match on every text element to check whether it matches a wrongfully separated word
