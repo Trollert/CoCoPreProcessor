@@ -8,7 +8,8 @@ url = ['https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/CoCoP
        'https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/functions.py',
        'https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/global_vars.py',
        'https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/patterns.py',
-       'https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/tk_functions.py']
+       'https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/tk_functions.py',
+       'https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/changelog.txt']
 currentDirectory = os.getcwd()
 for file in url:
     basename = os.path.basename(urlparse(file).path)
