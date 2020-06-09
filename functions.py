@@ -708,8 +708,8 @@ def first_cleanse():
         page_structure=False,
         inline_style=True
     )
-    tree = cleaner.clean_html(global_vars.tree)
-    return tree
+    global_vars.tree = cleaner.clean_html(global_vars.tree)
+    return global_vars.tree
 
 
 ####################
