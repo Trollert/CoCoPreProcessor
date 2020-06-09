@@ -729,6 +729,8 @@ def is_date(sInput, bFuzzy):
             return [True, True]
         except ValueError:
             return [False]
+    except TypeError:
+        return [False]
 
 
 # returns the maximum number of columns in a table as int
