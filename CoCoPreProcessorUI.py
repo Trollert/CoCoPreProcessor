@@ -9,7 +9,7 @@ from urllib.error import URLError
 import configparser
 
 # custom imports
-from functions import split_rowspan, big_fucking_table, replace_word_list, replace_number_list, set_footnote_tables, get_false_words, get_false_numbers, set_headers, set_unordered_list, remove_empty_rows, merge_tables_vertically, sup_elements, set_span_headers, rename_pictures, fix_tsd_separators, break_fonds_table, first_cleanse
+from functions import add_to_errorlog, split_rowspan, big_fucking_table, replace_word_list, replace_number_list, set_footnote_tables, get_false_words, get_false_numbers, set_headers, set_unordered_list, remove_empty_rows, merge_tables_vertically, sup_elements, set_span_headers, rename_pictures, fix_tsd_separators, break_fonds_table, first_cleanse
 from tk_functions import display_changelog, VerticalScrolledFrame, ListboxEditable
 from patterns import lSupElements
 import global_vars
@@ -25,7 +25,7 @@ if os.path.exists(global_vars.working_folder + '/preproc_config.ini'):
         _current_version_ = urlopen('https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/_version_.txt').read().decode('utf-8')
     except URLError:
         _current_version_ = _version_
-        print('Could not check current version online. Check your internet connection! This doesnt affect the normal processing process!')
+        add_to_errorlog('Could not check current version online. Check your internet connection! This doesnt affect the normal processing process!')
         global_vars.bFoundError = True
     if _version_ != _current_version_:
         global_vars.bUpToDate = False

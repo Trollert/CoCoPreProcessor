@@ -4,6 +4,7 @@ from lxml import etree
 from lxml.html.clean import Cleaner
 from textwrap import wrap as text_wrap
 import global_vars
+import calendar
 from patterns import *
 import os
 from dateutil import parser
@@ -729,7 +730,7 @@ def is_date(sInput, bFuzzy):
             return [True, True]
         except ValueError:
             return [False]
-    except:
+    except calendar.IllegalMonthError:
         return [False]
 
 
