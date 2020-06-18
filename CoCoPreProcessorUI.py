@@ -1,3 +1,4 @@
+#!/usr/bin/python
 import sys
 import re
 import os
@@ -9,10 +10,17 @@ from urllib.error import URLError
 import configparser
 
 # custom imports
-from functions import add_to_errorlog, split_rowspan, big_fucking_table, replace_word_list, replace_number_list, set_footnote_tables, get_false_words, get_false_numbers, set_headers, set_unordered_list, remove_empty_rows, merge_tables_vertically, sup_elements, set_span_headers, rename_pictures, fix_tsd_separators, break_fonds_table, first_cleanse
-from tk_functions import display_changelog, VerticalScrolledFrame, ListboxEditable
-from patterns import lSupElements
-import global_vars
+try:
+    from functions import span_cleanup, post_cleanup, add_to_errorlog, split_rowspan, big_fucking_table, replace_word_list, replace_number_list, set_footnote_tables, get_false_words, get_false_numbers, set_headers, set_unordered_list, remove_empty_rows, merge_tables_vertically, sup_elements, set_span_headers, rename_pictures, fix_tsd_separators, break_fonds_table, pre_cleanup
+    from tk_functions import display_changelog, VerticalScrolledFrame, ListboxEditable
+    from patterns import lSupElements
+    import global_vars
+except ImportError:
+    urlretrieve('https://raw.githubusercontent.com/Trollert/CoCoPreProcessor/master/update_script.py',
+                filename=os.getcwd() + '/update_script.py')
+    messagebox.showerror('Warning', 'Some modules could not be found! \n\nUpdate manually by clicking update_script.py!')
+    sys.exit()
+
 
 # read config file, create if not found
 Config = configparser.ConfigParser()
@@ -47,12 +55,11 @@ else:
 #####################
 #     OPEN FILE     #
 #####################
-if len(sys.argv) < 2:
-    global_vars.tk.filename = filedialog.askopenfilename(initialdir=global_vars.opening_folder, title="Select file",
-                                                         filetypes=(("HTML files", "*.htm"), ("all files", "*.*")))
-    global_vars.report_path = os.path.dirname(global_vars.tk.filename)
-else:
-    global_vars.tk.filename = sys.argv[1]
+
+global_vars.tk.filename = filedialog.askopenfilename(initialdir=global_vars.opening_folder, title="Select file",
+                                                     filetypes=(("HTML files", "*.htm"), ("all files", "*.*")))
+global_vars.report_path = os.path.dirname(global_vars.tk.filename)
+if not global_vars.tk.filename: sys.exit()
 
 # open the file as string, to replace tag-based substrings
 # much easier to do before parsing html
@@ -73,6 +80,9 @@ with open(global_vars.tk.filename, 'r', encoding='UTF-8') as fi, \
     # PARSING FILE #
     ################
 def generate_file(entryCkb):
+    if global_vars.bSpanHeaders.get():
+        set_span_headers()
+        span_cleanup()
     if global_vars.bRemoveEmptyRows.get():
         remove_empty_rows()
     if global_vars.bMergeTablesVertically.get():
@@ -87,8 +97,6 @@ def generate_file(entryCkb):
         set_unordered_list()
     if global_vars.bFootnotetables.get():
         set_footnote_tables()
-    if global_vars.bSpanHeaders.get():
-        set_span_headers(global_vars.leSpanHeaders)
     if global_vars.bSetHeaders.get():
         set_headers()
     if global_vars.fIsFondsReport.get():
@@ -101,34 +109,21 @@ def generate_file(entryCkb):
 
     if global_vars.bFoundError:
         messagebox.showwarning('Warning', '\n'.join(global_vars.lsErrorLog))
-    # wrap all table contents in p-tags
-    # wrap(tree, "p")
-    # write to new file in source folder
-    global_vars.tree.write(os.path.splitext(global_vars.tk.filename)[0] + '_modified.htm', encoding='UTF-8', method='html')
-    if global_vars.bSupElements.get():
-        sup_elements(os.path.splitext(global_vars.tk.filename)[0] + '_modified.htm', entryCkb)
 
-    # clean up user_words.txt
-    f = open(global_vars.working_folder + '/user_words.txt', 'r', encoding='utf-8')
-    l = f.read().splitlines()
-    f.close()
-    f = open(global_vars.working_folder + '/user_words.txt', 'w', encoding='utf-8')
-
-    f.write('\n'.join(list(dict.fromkeys(l))) + '\n')
-    f.close()
+    post_cleanup(entryCkb)
 
     global_vars.tk.destroy()
 
 
 with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     global_vars.tree = html.parse(input_file)
-    first_cleanse()
+    pre_cleanup()
     ############
     # BUILD UI #
     ############
 
     # MASTER WINDOW
-    global_vars.tk.title('CoCo PreProcessor UI  --  ' + os.path.splitext(global_vars.tk.filename)[0])
+    global_vars.tk.title('CoCo PreProcessor UI v. ' + Config['VERSION']['pre_proc_version'] + ' --  ' + os.path.splitext(global_vars.tk.filename)[0])
     global_vars.tk.geometry('700x800')
     frameTop = Frame(global_vars.tk, height=3)
     frameTop.pack(side='top', fill='x')
@@ -177,9 +172,12 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     ckbNumbers = Checkbutton(frameChecks, anchor='w', text='replace fixed numbers', variable=global_vars.bReplaceNumbers)
     ckbVertMerge = Checkbutton(frameChecks, anchor='w', text='vertically merge tables (§§)',
                                variable=global_vars.bMergeTablesVertically)
-    ckbSpanHeaders = Checkbutton(frameChecks, anchor='w', text='analyze heading (BETA)', variable=global_vars.bSpanHeaders)
+    if global_vars.bIsFormatted:
+        ckbSpanHeaders = Checkbutton(frameChecks, anchor='w', text='analyze heading (BETA)', variable=global_vars.bSpanHeaders)
     ckbRenamePics = Checkbutton(frameChecks, anchor='w', text='rename .png to .jpg', variable=global_vars.bRenamePictures)
     ckbSplitRowspan = Checkbutton(frameChecks, anchor='w', text='split row span', variable=global_vars.bSplitRowspan)
+    ckbSetUnorderedLists = Checkbutton(frameChecks, anchor='w', text='set unordered lists', variable=global_vars.bSetUnorderedList)
+    ckbIndentUnorderedLists = Checkbutton(frameChecks, anchor='w', text='Indent unordered lists?', variable=global_vars.bIndentUnorderedList)
 
     ckbHeaders.pack(side='top', anchor='w')
     ckbFootnotes.pack(side='top', anchor='w')
@@ -187,9 +185,12 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     ckbWords.pack(side='top', anchor='w')
     ckbNumbers.pack(side='top', anchor='w')
     ckbVertMerge.pack(side='top', anchor='w')
-    ckbSpanHeaders.pack(side='top', anchor='w')
+    if global_vars.bIsFormatted:
+        ckbSpanHeaders.pack(side='top', anchor='w')
     ckbRenamePics.pack(side='top', anchor='w')
     ckbSplitRowspan.pack(side='top', anchor='w')
+    ckbSetUnorderedLists.pack(side='top', anchor='w')
+    ckbIndentUnorderedLists.pack(side='top')
 
     # Sup check button
     labelCkb = Label(frameChecks, text='\nSuperscript elements')
@@ -206,8 +207,7 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
         fondsLabel = Label(frameChecks, text='Fonds report detected', font=('Arial', 9, 'bold'), fg='red')
         fondsLabel.pack(side='top')
         ckbTsdFix = Checkbutton(frameChecks, anchor='w', text='fix tsd separators', variable=global_vars.bFixTsdSeparators)
-        ckbBreakFondsTable = Checkbutton(frameChecks, anchor='w', text='break Vermögensaufstellung',
-                                         variable=global_vars.bBreakFondsTable)
+        ckbBreakFondsTable = Checkbutton(frameChecks, anchor='w', text='break Vermögensaufstellung', variable=global_vars.bBreakFondsTable)
         ckbTsdFix.pack(side='top', anchor='w')
         ckbBreakFondsTable.pack(side='top', anchor='w')
 
@@ -218,5 +218,5 @@ with open('tmp.htm', 'r+', encoding="utf-8") as input_file:
     global_vars.tk.mainloop()
 
 os.remove('tmp.htm')  # remove original
-if global_vars.bFoundError:
-    input('Fix displayed errors and press ENTER to quit!')
+# if global_vars.bFoundError:
+#     input('Fix displayed errors and press ENTER to quit!')

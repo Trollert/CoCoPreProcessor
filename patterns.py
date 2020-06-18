@@ -36,13 +36,13 @@ regMisc = [
 
 # compile possible header content
 regHeaderContent = [
-    re.compile('^\s*?(§§)?\(?(in)?\s*?(Tsd|Mio|Mrd|T|Millionen|Milliarden|tausend)?\.?\s?([€$£%‰]|EUR|TEUR|Jahre|tagen|prozent|qm|m2|sqm|m|km)\)?\s*?$',
+    re.compile('^\s*?(§§)?\(?(in)?\s*?(Tsd|Mio|Mrd|T|Millionen|Million|billion|Milliarden|tausend)?\.?\s?([€$£%‰]|EUR|TEUR|Jahre|tagen|prozent|qm|m2|sqm|m|km)\)?\s?(Tsd|Mio|Mrd|T|Millionen|Million|billion|Milliarden|tausend|thousands)?\s*?$',
                re.IGNORECASE | re.MULTILINE),
     re.compile('^\s*?(§§)?\(?(\$|€|£)(’|‘|\')(000|m)\)?\s*?$', re.IGNORECASE | re.MULTILINE)
 ]
 
 regUnorderedList = [
-    re.compile('^\s*?[\\\\►•·■\-□^→/]\s?', re.MULTILINE)
+    re.compile('^\s*?[\\\\►•·■\-□^→/]{1,2}\s?', re.MULTILINE)
 ]
 
 regFalseWords = [

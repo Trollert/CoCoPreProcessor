@@ -1,4 +1,21 @@
 #########################################
+#             Version 0.1.4:            #
+#########################################
+
+- improved unordered list detection and included indentation feature
+
+    - if the list denominators (-, ►, •, ·, etc.) change within a list chunk, the different denominator elements
+      are indented
+
+- improved the heading detection for formatted text files from ABBYY 15
+
+    - it is now possible to export the htm-file from ABBYY as "Formatted Text" and open them in the preprocessingUI
+    - this will enable a function to automatically detect previously unmarked headings and set them as "h3"
+    - this feature is still in BETA because of the nature of fontsizes detected by ABBYY, so it's not accurate for
+      a small fraction of reports
+    - FEEDBACK WHILE USING THIS FEATURE IS GREATLY APPRECIATED
+
+#########################################
 #             Version 0.1.3:            #
 #########################################
 

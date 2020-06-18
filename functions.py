@@ -4,10 +4,10 @@ from lxml import etree
 from lxml.html.clean import Cleaner
 from textwrap import wrap as text_wrap
 import global_vars
-import calendar
 from patterns import *
 import os
 from dateutil import parser
+# from lxml.cssselect import CSSSelector
 
 # configure german for dateutil parser
 class GermanParserInfo(parser.parserinfo):
@@ -34,7 +34,6 @@ class GermanParserInfo(parser.parserinfo):
 ######################
 # OPTIONAL FUNCTIONS #
 ######################
-
 def replace_word_list(replace_list, old_list):
     """
     replace the corrected listbox items with their counterparts
@@ -265,6 +264,9 @@ def set_headers():
         if len(table) >= 4 and get_max_columns(table) >= 3 and iHeaderRows == -1:
             iHeaderRows = 0
             fHeader = True
+        # if the whole table would be headers just set the first one to header
+        if len(table) == iHeaderRows + 1:
+            iHeaderRows = 0
 
         if fHeader:
             # create lists with header and body elements
@@ -283,33 +285,82 @@ def set_headers():
 
 
 # set all unordered list elements according to regex matches, only for > 1 matches
-
 def set_unordered_list():
     # find and set unordered lists
     leDashCandidates = []
     iDashCount = 0
+    bEndBlock = False
+    currentBlockDash = ''
+    indentIndices = []
     for p in global_vars.tree.xpath('//body/p'):
         # check if beginning of paragraph matches safe list denominators
         if p.text:
-            # if not check if "- " matches
-            if regUnorderedList[0].match(p.text):
+            # create match object,
+            # None if nothing was matched
+            # returns match when something was found
+            matchObject = regUnorderedList[0].match(p.text)
+            if matchObject:
+                # if this is the first element in this chunk define dash denominator
+                if not iDashCount:
+                    currentBlockDash = matchObject.group(0)
                 iDashCount += 1
-                # append to list for later tag change
-                leDashCandidates.append(p)
-            else:
-                # if only one dash is present, remove last element from dash list (single list item could be confused with
-                # wrong break)
-                if iDashCount == 1:
+                # check if the next element in root is also p
+                if p.getnext().tag == 'p':
+                    # if current dash denominator is not equal to the first dash
+                    # this might be a indented list element so append its index to list
+                    if currentBlockDash != matchObject.group(0):
+                        indentIndices.append(iDashCount - 1)
+                    leDashCandidates.append(p)
+                # if only one dashed element was found, check if it ends with a dot and only append if it did
+                elif iDashCount == 1:
+                    bEndBlock = True
+                    if p.text.endswith('.'):
+                        leDashCandidates.append(p)
+                # if next element is not of type p, check if current dash is of chunk type,
+                # if not check whether it might be of an indented group
+                elif currentBlockDash != matchObject.group(0):
+                    bEndBlock = True
+                    if matchObject.group(0) == leDashCandidates[-1].text[:2]:
+                        leDashCandidates.append(p)
+                        indentIndices.append(iDashCount - 1)
+                else:
+                    bEndBlock = True
+                    leDashCandidates.append(p)
+            # if dash elements were found, but its only one and it doesnt end with a dot, pop it from candidate list
+            elif leDashCandidates:
+                bEndBlock = True
+                if iDashCount == 1 and not leDashCandidates[0].text.endswith('.'):
                     leDashCandidates.pop()
-                iDashCount = 0
-    # iterate through dash list and change to unordered list
-    for p in leDashCandidates:
-        p.text = regUnorderedList[0].sub('', p.text)
-        p.tag = 'li'
-
+        # if bEndBlock is True, convert the current block to li
+        if bEndBlock:
+            bEndBlock = False
+            # only execute if dash elements were found
+            if leDashCandidates:
+                # select parent body-tag
+                currentParent = leDashCandidates[0].getparent()
+                # insert outer ul-tag at the index of the first dash group element
+                outerUl = etree.Element('ul')
+                currentParent.insert(currentParent.index(leDashCandidates[0]), outerUl)
+                # change tag of all dash elements to li and insert into ul-tag
+                for li in leDashCandidates:
+                    li.text = regUnorderedList[0].sub('', li.text, count=1)
+                    li.tag = 'li'
+                    outerUl.append(li)
+                # if indented elements were found, split index-list into sublists of consecutive chunks
+                if indentIndices and global_vars.bIndentUnorderedList.get():
+                    # iterate in reverse order to not mess up already moved elements
+                    for subList in reversed(split_non_consecutive(indentIndices)):
+                        # insert inner ul-tag at first sublist elements position
+                        innerUl = etree.Element('ul')
+                        outerUl.insert(subList[0], innerUl)
+                        # finally move indented elements into the ul-tag
+                        for elem in subList:
+                            innerUl.append(leDashCandidates[elem])
+                leDashCandidates.clear()
+                indentIndices.clear()
+            iDashCount = 0
 
 # remove empty rows
-
 def remove_empty_rows():
     # remove empty table rows
     for row in global_vars.tree.xpath('//tr[* and not(*[node()])]'):
@@ -317,7 +368,7 @@ def remove_empty_rows():
 
 
 # this function is very complex because of the nature of tables and cell-merging in html
-# it iterates through the columns, therefor indices and range() is used, not the elementwise iteration
+# it iterates through the columns, therefor indices and range() is used, not the element-wise iteration
 # it creates a matrix in which the offsets of all td-cells are documented depending on the colspans within the same
 # row, including new colspans from rowspan cells
 def split_rowspan():
@@ -483,10 +534,92 @@ def sup_elements(entry, path):
     # leTextNotHeader = tree.xpath('.//*[normalize-space(text()) and not(self::h1] and not(self::h2) and not(self::h3)')
 
 
-def set_span_headers(lSpanHeaders):
-    for span in lSpanHeaders:
-        span[0].drop_tag()
-        span.tag = 'h3'
+def set_span_headers():
+    # select all span tags that are the only thing present in a p tag (heading candidates)
+    for p in global_vars.tree.xpath('/html/body//p[count(*)=1]/span[@style]/parent::*'):
+        # check if tag contains more than just the span tag
+        # if so skip it
+        if p.text is None and (p.tail is None or re.fullmatch('\n*?', p.tail)):
+            # check if tag contains more than one span tag
+            # if so skip it
+            try:
+                if p[0].attrib['style'] == 'font-weight:bold;' or p[0].attrib['style'] == 'font-style:italic;':
+                    if not p.xpath('./span[normalize-space(.)]')[0].text.endswith('.'):
+                        p[0].drop_tag()
+                        p.tag = 'h3'
+            except KeyError:
+                pass
+
+    # get style tag content at the start of the document
+    stylecontent = global_vars.tree.xpath('/html/head/style')
+    print(stylecontent)
+    # convert it to list with only font classes
+    styleList = [element for element in stylecontent[0].text.splitlines() if element.startswith(' .font')]
+    # extract the font class indices
+    fontList = [int(re.findall('(?<=font:)\d+(?=pt)', size)[0]) for size in styleList]
+    # cut list when value of font size is no longer increasing (indicates font style change)
+    sortedList = [fontList[0]]
+    for i in range(1, len(fontList)):
+        if fontList[i] >= fontList[i-1]:
+            sortedList.append(fontList[i])
+        else:
+            break
+    # get all p elements with span child with 'class' attribute that are children of p and are an only child and dont contain text
+    allspan = global_vars.tree.xpath('body/p[count(*)=1 and not(text())]/span[@class]/parent::*')
+    occList = [0] * len(sortedList)
+    # create occurence list, to determine which font size is associated with normal text
+    for p in allspan:
+        try:
+            # increase index of font class in occList by one for each span element
+            occList[int(re.findall('(?<=font)\d+', p.find('span').attrib['class'])[0])] += 1
+        except IndexError:
+            pass
+    indexOfMax = occList.index(max(occList))
+    print(indexOfMax)
+    for p in allspan:
+        if int(re.findall('(?<=font)\d+', p[0].attrib['class'])[0]) > indexOfMax \
+                and not p[0].text.endswith('.'):
+            p.tag = 'h3'
+
+    # onlyh = global_vars.tree.xpath('body//*[self::h3 or self::h2 or self::h1]//span[@class]/parent::*')
+    # headerList = [[0, 0, 0] for _ in range(len(sortedList))]
+    # for hspan in onlyh:
+    #     for i in hspan.iterfind('span'):
+    #         try:
+    #             headerList[int(re.findall('(?<=font)\d+', i.attrib['class'])[0])][int(hspan.tag[1])-1] += 1
+    #         except IndexError:
+    #             pass
+    #
+    # allh = global_vars.tree.xpath('body/*[(self::h3 or self::h2 or self::h1) and count(*)=1]//span[@class]')
+    # hList = [0] * len(sortedList)
+    # cList = [0] * len(sortedList)
+    # for h in allh:
+    #     try:
+    #         cList[int(re.findall('(?<=font)\d+', h.attrib['class'])[0])] += 1
+    #         try:
+    #             if h.attrib['style'] == 'font-weight:bold;': continue
+    #         except KeyError:
+    #             hList[int(re.findall('(?<=font)\d+', h.attrib['class'])[0])] += 1
+    #     except IndexError:
+    #         pass
+    print('FONTSIZE IN ALL Ps')
+    print(occList)
+    # print()
+    # print('FONTSIZE IN ALL HEADINGS AND Ps THAT not END WITH . AND ARE NOT BOLD')
+    # print(dotList)
+    # print()
+    # print('FONTSIZE IN ALL HEADINGS')
+    # print(cList)
+    # print()
+    # print('FONTSIZE IN ALL HEADINGS THAT ARE NOT BOLD')
+    # print(hList)
+    # for tag in global_vars.tree.xpath('//*[@class]'):
+    #     # For each element with a class attribute, remove that class attribute
+    #     tag.attrib.pop('class')
+
+    for br in global_vars.tree.xpath('//br[@*]'):
+        br.drop_tag()
+
 
 
 def rename_pictures():
@@ -503,7 +636,9 @@ def rename_pictures():
                 # rename picture file
                 os.rename(picFolder + '/' + filename, picFolder + '/' + base_file + ".jpg")
 
-
+# this function fixed falsly formatted numbers within tables which should be thousand-separated by a space and decimal
+# separated by a chooseable separator "decSeparator"
+# the precision of decimal places is adopted from each original number
 def fix_tsd_separators(decSeparator):
     # exclude header and leftmost column from reformatting
     for table in global_vars.tree.xpath('//table[not(@class="footnote")]'):
@@ -515,7 +650,7 @@ def fix_tsd_separators(decSeparator):
                     # clean all whitespace from number
                     noSpace = cell.text.replace(' ', '')
                     # find nr of decimal places
-                    decPlaces = noSpace[::-1].find(',')
+                    decPlaces = noSpace[::-1].find(decSeparator)
                     # if none are found = -1 so fix that to 0
                     if decPlaces < 0 : decPlaces = 0
                     # reformat string to match float format
@@ -523,7 +658,8 @@ def fix_tsd_separators(decSeparator):
                     # replace tsd separators to chosen separator
                     cell.text = '{:,.{prec}f}'.format(float(noSpace.replace(',', '.')), prec=decPlaces).replace(',', ' ').replace('.', decSeparator)
 
-
+# this function inserts br-tags in the header and first column of the big "Vermögensaufstellung" Table in fonds reports
+# it hereby wraps the cell text to a specific length, which is set to 14 characters while not breaking longer words
 def break_fonds_table():
     eFondsTable = global_vars.tree.xpath(
         '/html/body/*[starts-with(normalize-space(text()),"Vermögensaufstellung")]/following-sibling::table[1]')
@@ -577,26 +713,6 @@ def big_fucking_table():
                     newTr.append(newTd)
                 row.addnext(newTr)
 
-# fSplitRowSpan = BooleanVar(value=1)
-# # split rowspan cells
-# def split_rowspan():
-#     leRowspanTables = tree.xpath('//table[.//td[@rowspan]]')
-#     # print(leRowspanTables)
-#     eEmptyTd = etree.Element('td')
-#     for table in leRowspanTables:
-#         for tr in table.xpath('./tr[.//td[@rowspan]]'):
-#             print('Row: ' + str(table.index(tr)))
-#             for td in tr.xpath('./td[@rowspan]'):
-#                 # for iRow in range(int(td.get('rowspan'))):
-#                     # table.
-#                 print(td)
-#                 # td.attrib.pop('rowspan')
-#                 table[table.index(tr)+1].insert(tr.index(td), eEmptyTd)
-#                 # print('Cell: ' + str(tr.index(td)))
-#
-#         # for tr in table.xpath('./tr[//td[@rowspan]]'):
-
-
 # wrap table cells in p tags
 def wrap(root, tag):
     # find <td> elements that do not have a <p> element
@@ -617,8 +733,7 @@ def wrap(root, tag):
         cell.append(e)
 
 # first cleaning of the ABBYY htm before the parsing process really starts
-def first_cleanse():
-
+def pre_cleanup():
     #################
     #  PREPARATIONS #
     #################
@@ -637,7 +752,7 @@ def first_cleanse():
         e.drop_tag()
 
     # remove p tags in tables
-    for p in global_vars.tree.xpath('//table//p'):
+    for p in global_vars.tree.xpath('//table//p | //table//span'):
         # print(p.text)
         p.drop_tag()
 
@@ -670,10 +785,6 @@ def first_cleanse():
     for li in global_vars.tree.xpath('//td/li'):
         li.drop_tag()
 
-    for tag in global_vars.tree.xpath('//*[@class]'):
-        # For each element with a class attribute, remove that class attribute
-        tag.attrib.pop('class')
-
     # remove sup/sub tags in unordered list candidates and for non footnote candidates
     for sup in global_vars.tree.xpath('//*[self:: sup or self::sub]'):
         if sup.text is None:
@@ -684,34 +795,66 @@ def first_cleanse():
                 and not any(re.fullmatch(e, sup.text) for e in lSupElements):
             sup.drop_tag()
 
+    # check if .htm-file is formatted and proceed accordingly
     # execute only if a formatted html file is used (ABBYY export formatted file)
-    if global_vars.tree.xpath('/html/head/style'):
+    if global_vars.tree.xpath('//span'):
+        global_vars.bIsFormatted = True
+        global_vars.bSpanHeaders.set(value=1)
+        cleaner = Cleaner(
+            remove_tags=['a', 'div'],
+            style=False,
+            meta=False,
+            remove_unknown_tags=False,
+            page_structure=False,
+            inline_style=False,
+            safe_attrs_only=False
+        )
+        global_vars.tree = cleaner.clean_html(global_vars.tree)
         print('Found formatted File')
-        # select all span tags that are the only thing present in a p tag (heading candidates)
-        for span in global_vars.tree.xpath('//*[self::span]/ancestor::p'):
-            # check if tag contains more than just the span tag
-            # if so skip it
-            if span.text is None:
-                # check if tag contains more than one span tag
-                # if so skip it
-                if len(span) == 1:
-                    global_vars.leSpanHeaders.append(span)
+    else:
+        cleaner = Cleaner(
+            remove_tags=['a', 'head', 'div', 'span'],
+            style=True,
+            meta=True,
+            remove_unknown_tags=False,
+            page_structure=False,
+            inline_style=True
+        )
+        global_vars.tree = cleaner.clean_html(global_vars.tree)
 
-        for br in global_vars.tree.xpath('//br[@*]'):
-            br.drop_tag()
-
-    # remove unwanted tags
-    cleaner = Cleaner(
-        remove_tags=['a', 'head', 'div', 'span'],
-        style=True,
-        meta=True,
-        remove_unknown_tags=False,
-        page_structure=False,
-        inline_style=True
-    )
-    global_vars.tree = cleaner.clean_html(global_vars.tree)
     return global_vars.tree
 
+
+# cleanup after generating
+def post_cleanup(entryCkb):
+    # wrap all table contents in p-tags
+    # wrap(tree, "p")
+    # write to new file in source folder
+    global_vars.tree.write(os.path.splitext(global_vars.tk.filename)[0] + '_modified.htm', encoding='UTF-8', method='html')
+    if global_vars.bSupElements.get():
+        sup_elements(entryCkb, os.path.splitext(global_vars.tk.filename)[0] + '_modified.htm')
+
+    # clean up user_words.txt
+    f = open(global_vars.working_folder + '/user_words.txt', 'r', encoding='utf-8')
+    l = f.read().splitlines()
+    f.close()
+    f = open(global_vars.working_folder + '/user_words.txt', 'w', encoding='utf-8')
+
+    f.write('\n'.join(list(dict.fromkeys(l))) + '\n')
+    f.close()
+
+
+def span_cleanup():
+    if global_vars.bIsFormatted:
+        cleaner = Cleaner(
+            remove_tags=['span', 'head'],
+            style=True,
+            meta=True,
+            remove_unknown_tags=False,
+            page_structure=False,
+            inline_style=True
+        )
+        global_vars.tree = cleaner.clean_html(global_vars.tree)
 
 ####################
 # HELPER FUNCTIONS #
@@ -762,3 +905,20 @@ def save_replacements(repl_dict, name):
 
 def add_to_errorlog(text):
     global_vars.lsErrorLog.append(text)
+
+# this is a generator to split a list in sublists with chunks of consecutive data from the inserted list
+def split_non_consecutive(data):
+    consec_list = []
+    inner_list = []
+    for i in range(len(data)):
+        if i == 0:
+            inner_list = [data[i]]
+        elif data[i] == data[i-1] + 1:
+            inner_list.append(data[i])
+        else:
+            consec_list.append(inner_list.copy())
+            inner_list.clear()
+            inner_list = [data[i]]
+    else:
+        consec_list.append(inner_list.copy())
+    return consec_list

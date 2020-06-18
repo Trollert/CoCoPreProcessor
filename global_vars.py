@@ -6,7 +6,8 @@ tree = None
 # global lists
 lAllFalseWordMatches = []
 lFalseNumberMatches = []
-leSpanHeaders = []
+leStyleHeaders = []
+leFontHeaders = []
 
 # current working directory
 report_path = ''
@@ -28,6 +29,7 @@ bRenamePictures = BooleanVar(value=1)
 bMergeTablesVertically = BooleanVar(value=1)
 bSpanHeaders = BooleanVar(value=0)
 bSetUnorderedList = BooleanVar(value=1)
+bIndentUnorderedList = BooleanVar(value=1)
 bSetHeaders = BooleanVar(value=1)
 bSupElements = BooleanVar(value=0)
 bRemoveEmptyRows = BooleanVar(value=1)
@@ -36,5 +38,6 @@ bBreakFondsTable = BooleanVar(value=1)
 
 # global flags
 bFoundError = False
+bIsFormatted = False
 lsErrorLog = []
 bUpToDate = True
