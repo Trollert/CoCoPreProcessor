@@ -2,6 +2,7 @@ import global_vars
 from tkinter import Listbox, Menu, Text, Tk, ttk, Label, StringVar, Frame, Widget, Scrollbar, Canvas
 from functools import partial
 
+
 # listbox class that has the option to pop up a menu on list items with right-click
 class FancyListbox(Listbox):
 
@@ -55,7 +56,7 @@ class FancyListbox(Listbox):
             self.popup_menu.grab_release()
 
     def add_user_word(self):
-        with open(global_vars.working_folder + '/user_words.txt', 'a', encoding='UTF-8') as f:
+        with open(global_vars.path_root_UI + '/user_words.txt', 'a', encoding='UTF-8') as f:
             f.write(self.get(self.curselection()) + '\n')
 
 
@@ -64,7 +65,7 @@ def display_changelog():
     popup = Tk()
     textbox = Text(popup, height=40, width=150)
     textbox.pack(expand=True, fill='both')
-    with open(global_vars.working_folder + '/changelog.txt', 'r') as f:
+    with open(global_vars.path_root_UI + '/changelog.txt', 'r') as f:
         textbox.insert('insert', f.read())
     popup.mainloop()
 
@@ -258,7 +259,7 @@ class ListboxEditable(object):
             getattr(self, labelMenu).grab_release()
 
     def add_user_word(self, ind):
-        with open(global_vars.working_folder + '/user_words.txt', 'a', encoding='UTF-8') as f:
+        with open(global_vars.path_root_UI + '/user_words.txt', 'a', encoding='UTF-8') as f:
             f.write(getattr(self, 'label' + str(ind)).cget('text') + '\n')
 
     # Place
@@ -345,7 +346,6 @@ class ListboxEditable(object):
         # Bind the action of focusOut
         self.entryActive.bind("<FocusOut>", lambda event, a=ind: self.saveEntryValue(a)) and \
             self.entryActive.bind("<Return>", lambda event, a=ind: self.saveEntryValue(a))
-
 
     def saveEntryValue(self, ind):
         # Find the label to recover

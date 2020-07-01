@@ -3,11 +3,11 @@ import pickle
 from lxml import etree
 from lxml.html.clean import Cleaner
 from textwrap import wrap as text_wrap
-import global_vars
+import global_vars as gv
 from patterns import *
 import os
 from dateutil import parser
-# from lxml.cssselect import CSSSelector
+
 
 # configure german for dateutil parser
 class GermanParserInfo(parser.parserinfo):
@@ -31,114 +31,118 @@ class GermanParserInfo(parser.parserinfo):
               ("Nov.", "November"),
               ("Dez.", "Dezember")]
 
+
 ######################
 # OPTIONAL FUNCTIONS #
 ######################
-def replace_word_list(replace_list, old_list):
+def replace_word_list(list_new, list_old):
     """
     replace the corrected listbox items with their counterparts
     """
-
-    leTextElements = global_vars.tree.xpath('.//*[normalize-space(text())]')
+    el_text = gv.tree.xpath('.//*[normalize-space(text())]')
     # get a list of listbox lines
-    corrected_list = list(replace_list)
+    corrected_list = list(list_new)
 
     # create duplicate to not create confusion while popping
-    tempAllFalseWords = old_list
+    list_temp_old = list_old
 
     # remove unaffected entries from both lists
-    for idx in reversed(range(len(tempAllFalseWords))):
-        if tempAllFalseWords[idx] == corrected_list[idx]:
-            tempAllFalseWords.pop(idx)
-            corrected_list.pop(idx)
+    for i in reversed(range(len(list_temp_old))):
+        if list_temp_old[i] == corrected_list[i]:
+            list_temp_old.pop(i)
+            corrected_list.pop(i)
 
     # create file to safe already replaced words in case of error
-    save_replacements(dict(zip(tempAllFalseWords, corrected_list)), '/save_words.pkl')
+    save_replacements(dict(zip(list_temp_old, corrected_list)), '/save_words.pkl')
 
-    for e in leTextElements:
-        for repEl in range(len(corrected_list)):
+    for e in el_text:
+        for i in range(len(corrected_list)):
             if e.text:
-                e.text = e.text.replace(tempAllFalseWords[repEl], corrected_list[repEl])
+                e.text = e.text.replace(list_temp_old[i], corrected_list[i])
+            # check tail as well (if present)
+            if len(e):
+                for t in e:
+                    if t.tail:
+                        t.tail = t.tail.replace(list_temp_old[i], corrected_list[i])
 
 
-def replace_number_list(replace_list, old_list):
-    leNumberElements = global_vars.tree.xpath('//table[not(@class="footnote")]/tr/td[normalize-space(text())]')
+
+def replace_number_list(list_new, list_old):
+    el_numbers_table = gv.tree.xpath('//table[not(@class="footnote")]/tr/td[normalize-space(text())]')
     # get a list of listbox lines
-    temp_list = replace_list
-    tempAllfalseNumbers = old_list
-    for idx in reversed(range(len(tempAllfalseNumbers))):
-        if tempAllfalseNumbers[idx] == temp_list[idx]:
-            tempAllfalseNumbers.pop(idx)
-            temp_list.pop(idx)
+    list_temp_new = list_new
+    list_temp_old = list_old
+    for i in reversed(range(len(list_temp_old))):
+        if list_temp_old[i] == list_temp_new[i]:
+            list_temp_old.pop(i)
+            list_temp_new.pop(i)
 
     # create file to safe already replaced numbers in case of error
-    save_replacements(dict(zip(tempAllfalseNumbers, temp_list)), '/save_numbers.pkl')
+    save_replacements(dict(zip(list_temp_old, list_temp_new)), '/save_numbers.pkl')
 
-    for e in leNumberElements:
-        for repEl in range(len(temp_list)):
+    for e in el_numbers_table:
+        for i in range(len(list_temp_new)):
             if e.text:
-                e.text = e.text.replace(tempAllfalseNumbers[repEl], temp_list[repEl])
+                e.text = e.text.replace(list_temp_old[i], list_temp_new[i])
 
 
 def set_footnote_tables():
-    leAllTables = global_vars.tree.xpath('//table')
+    el_tables = gv.tree.xpath('//table')
     # check if tables are footnote tables
-    for table in range(len(leAllTables)):
-        leFirstColCells = []
-        lbFootnoteMatches = []
-        # print(len(tables[table].xpath('.//tr[1]/td')))
+    for table in range(len(el_tables)):
+        el_first_col_cells = []
+        list_b_is_anchor = []
         # check first whether table is exactly 2 columns wide
-        # print(table)
-        if len(leAllTables[table].xpath('.//tr[last()]/td')) == 2:
+        if len(el_tables[table].xpath('.//tr[last()]/td')) == 2:
             # create list from first column values
-            leFirstColCells.append(leAllTables[table].xpath('.//tr/td[1]'))
+            el_first_col_cells.append(el_tables[table].xpath('.//tr/td[1]'))
             # flatten list
-            leFirstColCells = [item for sublist in leFirstColCells for item in sublist]
+            el_first_col_cells = [item for sublist in el_first_col_cells for item in sublist]
             # check if any footnote regex pattern matches, if yes set corresponding matches list value to true
-            for eCell in leFirstColCells:
+            for cell in el_first_col_cells:
                 # remove sup, sub-tags if found
-                for el in eCell:
+                for el in cell:
                     if el.tag == 'sup' or el.tag == 'sub':
                         el.drop_tag()
                 # create list with bool values of every regex, td-value match
-                if eCell.text is not None:
-                    lbFootnoteMatches.append(any(list(reg.fullmatch(eCell.text) for reg in regFootnote)))
+                if cell.text is not None:
+                    list_b_is_anchor.append(any(list(reg.fullmatch(cell.text) for reg in regFootnote)))
                 else:
-                    lbFootnoteMatches.append(False)
+                    list_b_is_anchor.append(False)
             # check if all footnote cell values matched with regex pattern
-            if all(lbFootnoteMatches):
+            if all(list_b_is_anchor):
                 # if yes set table attribute to "footnote" and insert anchors
-                for eCell in leFirstColCells:
-                    etree.SubElement(eCell, 'a', id='a' + str(table + 1) + str(leFirstColCells.index(eCell)))
-                leAllTables[table].set('class', 'footnote')
+                for cell in el_first_col_cells:
+                    etree.SubElement(cell, 'a', id='a' + str(table + 1) + str(el_first_col_cells.index(cell)))
+                el_tables[table].set('class', 'footnote')
 
             # clear lists
-            leFirstColCells.clear()
-            lbFootnoteMatches.clear()
+            el_first_col_cells.clear()
+            list_b_is_anchor.clear()
 
 
 def get_false_numbers(path):
     # check numbers in table cells
     # get all tables that are not footnote tables
-    leStandardTables = global_vars.tree.xpath('//table[not(@class="footnote")]')
+    el_standard_tables = gv.tree.xpath('//table[not(@class="footnote")]')
     # if save numbers file exists, replace matches before finding new ones
     if os.path.exists(path + '/save_numbers.pkl'):
         save_file = open(path + '/save_numbers.pkl', 'rb')
         save_dict = pickle.load(save_file)
         save_file.close()
-        for table in leStandardTables:
+        for table in el_standard_tables:
             for row in table:
                 for cell in row:
                     if cell.text is not None:
                         for old, new in save_dict.items():
                             cell.text = cell.text.replace(old, new)
 
-    for table in leStandardTables:
-        leSubtables = []
-        iFormatCount = [0] * (len(regNumbers) + 1)
+    for table in el_standard_tables:
+        el_subtables = []
+        i_format_count = [0] * (len(regNumbers) + 1)
         # select all non-empty td-elements, beginning at second column
-        leSubtables.append(table.xpath('.//tr/td[position() > 1 and normalize-space(text())]'))
-        for row in leSubtables:
+        el_subtables.append(table.xpath('.//tr/td[position() > 1 and normalize-space(text())]'))
+        for row in el_subtables:
             for cell in row:
                 # trim leading/trailing whitespace (not sure why its done here)
                 # cell.text = cell.xpath('normalize-space(text())')
@@ -151,31 +155,31 @@ def get_false_numbers(path):
                             break
                     # TODO: Make this date br matching better
                     # stupid hacky shit to check cells with br-tag for date matching
-                    cellWithoutBr = ''
+                    cell_without_br = ''
                     if cell.find('br') is not None:
-                        brAll = cell.findall('br')
-                        cellWithoutBr = cell.text
-                        for br in brAll:
-                            cellWithoutBr += ' ' + br.tail
-                    if cellWithoutBr:
-                        cellWithoutBr = re.sub(r'(\t|\n)', '', cellWithoutBr)
+                        all_br = cell.findall('br')
+                        cell_without_br = cell.text
+                        for br in all_br:
+                            cell_without_br += ' ' + br.tail
+                    if cell_without_br:
+                        cell_without_br = re.sub(r'(\t|\n)', '', cell_without_br)
 
                     # if any format matched increase the table counter and dont change anything
                     if sum(cell_format):
-                        iFormatCount = [a + b for a, b in zip(iFormatCount, cell_format)]
+                        i_format_count = [a + b for a, b in zip(i_format_count, cell_format)]
                     # if br-tags where present within the cell, check that first
-                    elif cellWithoutBr and is_date(cellWithoutBr, False)[0]:
-                        iFormatCount[-1] += 1
+                    elif cell_without_br and is_date(cell_without_br, False)[0]:
+                        i_format_count[-1] += 1
                     # if not check normally
                     elif is_date(cell.text, False)[0]:
-                        iFormatCount[-1] += 1
+                        i_format_count[-1] += 1
                         if is_date(cell.text, False)[1]:
                             cell.text = re.sub('\s', '', cell.text)
                     elif any(reg.fullmatch(cell.text) for reg in regMisc + regHeaderContent):
                         continue
                     # if no match could be found, try to fix it or move it to false match list
                     else:
-                        if global_vars.bFixNumbers.get():
+                        if gv.b_fix_numbers.get():
                             # if cell only contains number tokens, try to fix format
                             if re.fullmatch('[0-9,. \-+]*', cell.text_content()):
                                 # drop br-tag if one is found
@@ -187,92 +191,137 @@ def get_false_numbers(path):
                                     cell.text = re.sub(r'\s+', '', cell.text)
                                 # if you cant fix it, append to false number list
                                 else:
-                                    global_vars.lFalseNumberMatches.append(cell.text)
+                                    gv.list_false_number_matches.append(cell.text)
                             # otherwise append it to false number match list
                             else:
-                                global_vars.lFalseNumberMatches.append(cell.text)
+                                gv.list_false_number_matches.append(cell.text)
                         else:
-                            global_vars.lFalseNumberMatches.append(cell.text)
-    global_vars.lFalseNumberMatches = list(dict.fromkeys(global_vars.lFalseNumberMatches))
+                            gv.list_false_number_matches.append(cell.text)
+    gv.list_false_number_matches = list(dict.fromkeys(gv.list_false_number_matches))
 
 
 def get_false_words(path):
     # check false word separations
     # get all elements that contain text (p/h1/h2/h3/td)
     # global lAllFalseWordMatches
-    lAll = []
-    leTextElements = global_vars.tree.xpath('.//*[normalize-space(text())]')
+    list_all_matches = []
+    el_all_text = gv.tree.xpath('.//*[normalize-space(text())]')
+    # check for saved replacements and apply them if found
     if os.path.exists(path + '/save_words.pkl'):
         save_file = open(path + '/save_words.pkl', 'rb')
         save_dict = pickle.load(save_file)
         save_file.close()
-
-        for e in leTextElements:
+        for e in el_all_text:
             if e.text:
                 for old, new in save_dict.items():
                     e.text = e.text.replace(old, new)
-    # print(textElements)
-    for e in leTextElements:
-        # regex match on every text element to check whether it matches a wrongfully separated word
-        # print(e.text)
+                    # check tail as well
+                    if len(e):
+                        for t in e:
+                            if t.tail:
+                                t.tail = t.tail.replace(old, new)
+    # regex match on every text element to check whether it matches a wrongfully separated word
+    for e in el_all_text:
         if e.text:
             for regex_match in regFalseWords:
-                lCurrentMatches = regex_match.findall(e.text)
-                if len(lCurrentMatches):
-                    lCurrentMatches = [elem for elem in lCurrentMatches if elem not in lAllowedWords]
-                    lAll.extend(lCurrentMatches)
-    global_vars.lAllFalseWordMatches = list(dict.fromkeys(lAll))
+                list_current_matches = regex_match.findall(e.text_content())
+                if len(list_current_matches):
+                    list_current_matches = [elem for elem in list_current_matches if elem not in lAllowedWords]
+                    list_all_matches.extend(list_current_matches)
+    gv.list_false_word_matches = list(dict.fromkeys(list_all_matches))
+
+
+def remove_false_text_breaks():
+    """
+    this function merges p-elements depending on line-end and line-start characters
+    this is basically just for removing falsely separated paragraphs
+    """
+    all_text_elements = gv.tree.xpath('/html/body/p')
+    if gv.flag_is_formatted:
+        for i in range(len(all_text_elements)):
+            try:
+                # check end and start char of two adjacent p-tag-strings
+                if reg_false_break_indicator_end.search(all_text_elements[i].text_content()) and \
+                        reg_false_break_indicator_start.search(all_text_elements[i+1].text_content()):
+                    # add space if needed
+                    if not all_text_elements[i].text_content().endswith(' '):
+                        all_text_elements[i+1][0].text = ' ' + all_text_elements[i+1][0].text
+                    # append second element to first
+                    all_text_elements[i].append(all_text_elements[i+1])
+                    # remove the tag from second element to prevent nested paragraphs
+                    all_text_elements[i+1].drop_tag()
+            except IndexError:
+                # this exception is only raised when reaching the end of the list
+                # so this is just ignored
+                continue
+    else:
+        for i in range(len(all_text_elements)):
+            try:
+                # check end and start char of two adjacent p-tag-strings
+                if reg_false_break_indicator_end.search(all_text_elements[i].text_content()) and \
+                        reg_false_break_indicator_start.search(all_text_elements[i+1].text_content()):
+                    # add space if needed
+                    if not all_text_elements[i].text_content().endswith(' '):
+                        all_text_elements[i+1].text = ' ' + all_text_elements[i+1].text
+                    # append second element to first
+                    all_text_elements[i].append(all_text_elements[i+1])
+                    # remove the tag from second element to prevent nested paragraphs
+                    all_text_elements[i+1].drop_tag()
+            except IndexError:
+                # this exception is only raised when reaching the end of the list
+                # so this is just ignored
+                continue
 
 
 def set_headers():
     # set table headers row for row
-    leStandardTables = global_vars.tree.xpath('//table[not(@class="footnote")]')
-    for table in leStandardTables:
-        fHeader = False
-        fBreakOut = False
-        iHeaderRows = -1  # -1 for later comparison with 0 index
-        iOldHeaderRow = -1
+    el_standard_tables = gv.tree.xpath('//table[not(@class="footnote")]')
+    for table in el_standard_tables:
+        flag_is_header = False
+        flag_break_out = False
+        i_header_rows = -1  # -1 for later comparison with 0 index
+        i_old_header_row = -1
         for row in table:
             for cell in row:
                 if cell.text:
                     # first compare cell content to header content matches or date type
                     # if anything matches, set current row to header row
                     if any(list(reg.fullmatch(cell.text) for reg in regHeaderContent)) or is_date(cell.text, False)[0]:
-                        fHeader = True
-                        iHeaderRows = table.index(row)
+                        flag_is_header = True
+                        i_header_rows = table.index(row)
                     # then compare to number matches
                     # if it matches here the function quits and reverts back to previous header row
                     if any(list(reg.fullmatch(cell.text) for reg in regNumbers)):
                         # print('found number')
-                        iHeaderRows = iOldHeaderRow
-                        fBreakOut = True
+                        i_header_rows = i_old_header_row
+                        flag_break_out = True
                         break
-            if fBreakOut:
+            if flag_break_out:
                 break
-            iOldHeaderRow = iHeaderRows
+            i_old_header_row = i_header_rows
 
         # get the first occuring row in which the first cell is not empty
-        eFirstTextRow = table.xpath('./tr[td[position() = 1 and text()]][1]')
-        if len(eFirstTextRow):
+        el_first_non_empty_row = table.xpath('./tr[td[position() = 1 and text()]][1]')
+        if len(el_first_non_empty_row):
             # index of the first cell with text - 1 to get only empty cells
-            iFirstTextCellRow = table.index(eFirstTextRow[0]) - 1
+            first_text_cell_row = table.index(el_first_non_empty_row[0]) - 1
             # compare to header content matches
-            if iHeaderRows <= iFirstTextCellRow:
-                iHeaderRows = iFirstTextCellRow
-                fHeader = True
+            if i_header_rows <= first_text_cell_row:
+                i_header_rows = first_text_cell_row
+                flag_is_header = True
         # when no header is found and table is of specific size, set first row to header row
-        if len(table) >= 4 and get_max_columns(table) >= 3 and iHeaderRows == -1:
-            iHeaderRows = 0
-            fHeader = True
+        if len(table) >= 4 and get_max_columns(table) >= 3 and i_header_rows == -1:
+            i_header_rows = 0
+            flag_is_header = True
         # if the whole table would be headers just set the first one to header
-        if len(table) == iHeaderRows + 1:
-            iHeaderRows = 0
+        if len(table) == i_header_rows + 1:
+            i_header_rows = 0
 
-        if fHeader:
+        if flag_is_header:
             # create lists with header and body elements
             # this is needed at the beginning, because the position changes when adding header and body tags
-            headers = table.xpath('.//tr[position() <= %s]' % str(iHeaderRows + 1))
-            body = table.xpath('.//tr[position() > %s]' % str(iHeaderRows + 1))
+            headers = table.xpath('.//tr[position() <= %s]' % str(i_header_rows + 1))
+            body = table.xpath('.//tr[position() > %s]' % str(i_header_rows + 1))
             # create thead-/tbody-tags
             table.insert(0, etree.Element('tbody'))
             table.insert(0, etree.Element('thead'))
@@ -287,83 +336,84 @@ def set_headers():
 # set all unordered list elements according to regex matches, only for > 1 matches
 def set_unordered_list():
     # find and set unordered lists
-    leDashCandidates = []
-    iDashCount = 0
-    bEndBlock = False
-    currentBlockDash = ''
-    indentIndices = []
-    for p in global_vars.tree.xpath('//body/p'):
+    list_dash_candidates = []
+    i_dash_count = 0
+    flag_end_block = False
+    current_block_dash = ''
+    index_indent = []
+    for p in gv.tree.xpath('//body/p'):
         # check if beginning of paragraph matches safe list denominators
         if p.text:
             # create match object,
             # None if nothing was matched
             # returns match when something was found
-            matchObject = regUnorderedList[0].match(p.text)
-            if matchObject:
+            object_match = regUnorderedList[0].match(p.text)
+            if object_match:
                 # if this is the first element in this chunk define dash denominator
-                if not iDashCount:
-                    currentBlockDash = matchObject.group(0)
-                iDashCount += 1
+                if not i_dash_count:
+                    current_block_dash = object_match.group(0)
+                i_dash_count += 1
                 # check if the next element in root is also p
                 if p.getnext().tag == 'p':
                     # if current dash denominator is not equal to the first dash
                     # this might be a indented list element so append its index to list
-                    if currentBlockDash != matchObject.group(0):
-                        indentIndices.append(iDashCount - 1)
-                    leDashCandidates.append(p)
+                    if current_block_dash != object_match.group(0):
+                        index_indent.append(i_dash_count - 1)
+                    list_dash_candidates.append(p)
                 # if only one dashed element was found, check if it ends with a dot and only append if it did
-                elif iDashCount == 1:
-                    bEndBlock = True
+                elif i_dash_count == 1:
+                    flag_end_block = True
                     if p.text.endswith('.'):
-                        leDashCandidates.append(p)
+                        list_dash_candidates.append(p)
                 # if next element is not of type p, check if current dash is of chunk type,
                 # if not check whether it might be of an indented group
-                elif currentBlockDash != matchObject.group(0):
-                    bEndBlock = True
-                    if matchObject.group(0) == leDashCandidates[-1].text[:2]:
-                        leDashCandidates.append(p)
-                        indentIndices.append(iDashCount - 1)
+                elif current_block_dash != object_match.group(0):
+                    flag_end_block = True
+                    if object_match.group(0) == list_dash_candidates[-1].text[:2]:
+                        list_dash_candidates.append(p)
+                        index_indent.append(i_dash_count - 1)
                 else:
-                    bEndBlock = True
-                    leDashCandidates.append(p)
+                    flag_end_block = True
+                    list_dash_candidates.append(p)
             # if dash elements were found, but its only one and it doesnt end with a dot, pop it from candidate list
-            elif leDashCandidates:
-                bEndBlock = True
-                if iDashCount == 1 and not leDashCandidates[0].text.endswith('.'):
-                    leDashCandidates.pop()
-        # if bEndBlock is True, convert the current block to li
-        if bEndBlock:
-            bEndBlock = False
+            elif list_dash_candidates:
+                flag_end_block = True
+                if i_dash_count == 1 and not list_dash_candidates[0].text.endswith('.'):
+                    list_dash_candidates.pop()
+        # if flag_end_block is True, convert the current block to li
+        if flag_end_block:
+            flag_end_block = False
             # only execute if dash elements were found
-            if leDashCandidates:
+            if list_dash_candidates:
                 # select parent body-tag
-                currentParent = leDashCandidates[0].getparent()
+                currentParent = list_dash_candidates[0].getparent()
                 # insert outer ul-tag at the index of the first dash group element
                 outerUl = etree.Element('ul')
-                currentParent.insert(currentParent.index(leDashCandidates[0]), outerUl)
+                currentParent.insert(currentParent.index(list_dash_candidates[0]), outerUl)
                 # change tag of all dash elements to li and insert into ul-tag
-                for li in leDashCandidates:
+                for li in list_dash_candidates:
                     li.text = regUnorderedList[0].sub('', li.text, count=1)
                     li.tag = 'li'
                     outerUl.append(li)
                 # if indented elements were found, split index-list into sublists of consecutive chunks
-                if indentIndices and global_vars.bIndentUnorderedList.get():
+                if index_indent and gv.b_indent_unordered_list.get():
                     # iterate in reverse order to not mess up already moved elements
-                    for subList in reversed(split_non_consecutive(indentIndices)):
+                    for subList in reversed(split_non_consecutive(index_indent)):
                         # insert inner ul-tag at first sublist elements position
                         innerUl = etree.Element('ul')
                         outerUl.insert(subList[0], innerUl)
                         # finally move indented elements into the ul-tag
                         for elem in subList:
-                            innerUl.append(leDashCandidates[elem])
-                leDashCandidates.clear()
-                indentIndices.clear()
-            iDashCount = 0
+                            innerUl.append(list_dash_candidates[elem])
+                list_dash_candidates.clear()
+                index_indent.clear()
+            i_dash_count = 0
+
 
 # remove empty rows
 def remove_empty_rows():
     # remove empty table rows
-    for row in global_vars.tree.xpath('//tr[* and not(*[node()])]'):
+    for row in gv.tree.xpath('//tr[* and not(*[node()])]'):
         row.getparent().remove(row)
 
 
@@ -373,345 +423,427 @@ def remove_empty_rows():
 # row, including new colspans from rowspan cells
 def split_rowspan():
     # get all tables that have at least one td-attribute of rowspan with a value greater than 1
-    rowspanTables = global_vars.tree.xpath('//table[tr/td[@rowspan > 1]]')
-    for table in rowspanTables:
+    el_rowspan_tables = gv.tree.xpath('//table[tr/td[@rowspan > 1]]')
+    for table in el_rowspan_tables:
         # create 0-matrix of the raw table dimensions
-        matrixColspan = [[0 for x in range(get_max_columns(table))] for y in range(len(table))]
+        matrix_correction = [[0 for x in range(get_max_columns(table))] for y in range(len(table))]
         # list to remember already processed cells
-        cellHistory = []
+        cell_history = []
         # iterate td
         for i in range(get_max_columns(table)):
             # print('COL: ' + str(i+1))
             # iterate tr
             for j in range(len(table)):
-                # print('now cell: ' + str(j + 1) + ' ; ' + str(i + 1 + matrixColspan[j][i]))
+                # print('now cell: ' + str(j + 1) + ' ; ' + str(i + 1 + matrix_correction[j][i]))
                 # select cell depending on indices and the offset given by matrix
-                cell = table.xpath('./tr[' + str(j + 1) + ']/td[' + str(i + 1 + matrixColspan[j][i]) + ']')
+                cell = table.xpath('./tr[' + str(j + 1) + ']/td[' + str(i + 1 + matrix_correction[j][i]) + ']')
                 # if cell was already processed skip to next cell
-                if cell in cellHistory:
+                if cell in cell_history:
                     continue
                 # if not append it to history
-                cellHistory.append(cell)
+                cell_history.append(cell)
                 # get number of colspan/rowspan if any are present in td tag
-                nrCS = cell[0].get('colspan')
-                nrRS = cell[0].get('rowspan')
-                # print('cell : ' + cell[0].text_content() + ' : has row span: ' + str(nrRS) + ' col span: ' + str(nrCS))
+                nr_cs = cell[0].get('colspan')
+                nr_rs = cell[0].get('rowspan')
+                # print('cell : ' + cell[0].text_content() + ' : has row span: ' + str(nr_rs) + ' col span: ' + str(nr_cs))
                 # if colspan is present, change offset in matrix
-                if nrCS is not None and int(nrCS) > 1:
-                    # print(matrixColspan)
+                if nr_cs is not None and int(nr_cs) > 1:
+                    # print(matrix_correction)
                     # offset is set, beginning at current cell, starting with 0 and decreasing to negative colspan value + 1
-                    for c in range(int(nrCS)):
-                        matrixColspan[j][i + c] += -c
-                    # for m in range(i + int(nrCS), len(matrixColspan[j])):
+                    for c in range(int(nr_cs)):
+                        matrix_correction[j][i + c] += -c
+                    # for m in range(i + int(nr_cs), len(matrix_correction[j])):
                     # change the offset of the remaining cells to maximum negative offset given from colspan value + 1
-                    matrixColspan[j][i + int(nrCS):] = [a - int(nrCS) + 1 for a in matrixColspan[j][i + int(nrCS):]]
-                    # print(matrixColspan)
+                    matrix_correction[j][i + int(nr_cs):] = [a - int(nr_cs) + 1 for a in matrix_correction[j][i + int(nr_cs):]]
+                    # print(matrix_correction)
                 # if cell has rowspan insert corresponding number of empty cells in the following rows
-                if nrRS is not None and int(nrRS) > 1:
-                    for nrRowspan in range(1, int(nrRS)):
+                if nr_rs is not None and int(nr_rs) > 1:
+                    for nrRowspan in range(1, int(nr_rs)):
                         # if cell[0].get('colspan') is not None and int(cell[0].get('colspan')) > 1:
                         # if cell has colspan, insert empty cell with equal rowspan attribute
-                        if nrCS is not None and int(nrCS) > 1:
-                            table[j + nrRowspan].insert(i + matrixColspan[j + nrRowspan][i], etree.Element('td', attrib={'colspan': nrCS}))
-                            # print('Inserted new cell in col: ' + str(i + matrixColspan[j + nrRowspan][i]) + ' in row: ' + str(j + nrRowspan))
+                        if nr_cs is not None and int(nr_cs) > 1:
+                            table[j + nrRowspan].insert(i + matrix_correction[j + nrRowspan][i], etree.Element('td', attrib={'colspan': nr_cs}))
+                            # print('Inserted new cell in col: ' + str(i + matrix_correction[j + nrRowspan][i]) + ' in row: ' + str(j + nrRowspan))
                         else:
-                            table[j + nrRowspan].insert(i + matrixColspan[j + nrRowspan][i], etree.Element('td'))
-                            # print('Inserted new cell in col: ' + str(i + matrixColspan[j + nrRowspan][i]) + ' in row: ' + str(j + nrRowspan))
+                            table[j + nrRowspan].insert(i + matrix_correction[j + nrRowspan][i], etree.Element('td'))
+                            # print('Inserted new cell in col: ' + str(i + matrix_correction[j + nrRowspan][i]) + ' in row: ' + str(j + nrRowspan))
                     # finally remove the rowspan attribute
                     del cell[0].attrib['rowspan']
 
 
 # merge marked tables vertically
 def merge_tables_vertically():
-    leMergeTables = global_vars.tree.xpath(
+    el_merge_tables = gv.tree.xpath(
         '//table[tr[1]/td[1][starts-with(normalize-space(text()),"§§")] or tr[last()]/td[last()][starts-with(normalize-space(text()),"§§")]]')
-    leToMerge = []
-    fContinuedMerge = False
-    for table in leMergeTables:
+    list_to_merge = []
+    flag_continue_merge = False
+    for table in el_merge_tables:
         iCols = []
-        fStartMarker = table.xpath('./tr[1]/td[1][starts-with(normalize-space(text()),"§§")]')
-        fEndMarker = table.xpath('./tr[last()]/td[last()][starts-with(normalize-space(text()),"§§")]')
+        flag_start_marker = table.xpath('./tr[1]/td[1][starts-with(normalize-space(text()),"§§")]')
+        flag_end_marker = table.xpath('./tr[last()]/td[last()][starts-with(normalize-space(text()),"§§")]')
         # check if table has end marker (§§)
-        if fEndMarker:
+        if flag_end_marker:
             # and start marker?
-            if fStartMarker:
+            if flag_start_marker:
                 # is merge list empty?
-                if not leToMerge:
+                if not list_to_merge:
                     # BUG
-                    add_to_errorlog('Error in marker start or end position! Check the markers in ABBYY!\n'
+                    add_to_error_log('Error in marker start or end position! Check the markers in ABBYY!\n'
                             'Error found in table with start marker: ' + str(table.xpath('./tr[1]/td[1]/text()')) + '\n'
                             'and end marker: '
-                            + str(table.xpath('./tr[last()]/td[last()]/text()')))
-                    fContinuedMerge = False
-                    global_vars.bFoundError = True
+                                     + str(table.xpath('./tr[last()]/td[last()]/text()')))
+                    flag_continue_merge = False
+                    gv.flag_found_error = True
                     continue
                 else:
-                    leToMerge.append(table)
-                    fContinuedMerge = True
+                    list_to_merge.append(table)
+                    flag_continue_merge = True
             else:
-                leToMerge.append(table)
-                fContinuedMerge = True
-        elif fStartMarker:
-            if not leToMerge:
+                list_to_merge.append(table)
+                flag_continue_merge = True
+        elif flag_start_marker:
+            if not list_to_merge:
                 # BUG
-                add_to_errorlog('Error in start marker position! Check the markers in ABBYY!\n'
+                add_to_error_log('Error in start marker position! Check the markers in ABBYY!\n'
                       'Error found in table with start marker: ' + str(table.xpath('./tr[1]/td[1]/text()')))
-                fContinuedMerge = False
-                global_vars.bFoundError = True
+                flag_continue_merge = False
+                gv.flag_found_error = True
                 continue
             else:
-                leToMerge.append(table)
-                fContinuedMerge = False
+                list_to_merge.append(table)
+                flag_continue_merge = False
         else:
-            add_to_errorlog('No markers detected, this shouldnt happen, report this bug!')
-            global_vars.bFoundError = True
+            add_to_error_log('No markers detected, this shouldnt happen, report this bug!')
+            gv.flag_found_error = True
             break
         # next table included in merge?
         # if not merge collected tables
-        if not fContinuedMerge:
+        if not flag_continue_merge:
             # check if all tables in merge list have the same number of columns
-            iColNumbers = []
-            iTableIndices = []
-            for mTable in leToMerge:
-                iColNumbers.append(get_max_columns(mTable))
+            i_col_numbers = []
+            index_tables = []
+            for mTable in list_to_merge:
+                i_col_numbers.append(get_max_columns(mTable))
                 # get indices of tables to merge
-                iTableIndices.append(global_vars.tree.find('body').index(mTable))
+                index_tables.append(gv.tree.find('body').index(mTable))
             # do all merging candidates have the same number of columns?
-            if len(set(iColNumbers)) == 1:
+            if len(set(i_col_numbers)) == 1:
                 # before merging, check whether all the tables in this merging process are consecutive tables within
                 # the body tag
                 # if not only raise warning
                 # TODO: raise warning and give user option to not proceed
-                if iTableIndices != list(range(min(iTableIndices), max(iTableIndices)+1)):
-                    add_to_errorlog('You try to merge tables that are not consecutive within the html.\n'
+                if index_tables != list(range(min(index_tables), max(index_tables)+1)):
+                    add_to_error_log('You try to merge tables that are not consecutive within the html.\n'
                           'Please check the table set beginning with'
-                          ' ' + str(leToMerge[0].xpath('./tr[last()]/td[last()]/text()')) + ' as end marker, ' +
-                          str(len(leToMerge)) + ' subtables and ' +
-                          str(iColNumbers) + ' columns.\n\n'
+                          ' ' + str(list_to_merge[0].xpath('./tr[last()]/td[last()]/text()')) + ' as end marker, ' +
+                                     str(len(list_to_merge)) + ' subtables and ' +
+                                     str(i_col_numbers) + ' columns.\n\n'
                           'This is fairly unusual, but the merging process will still be executed.\n'
                           'Redo the processing after fixing in ABBYY or Sourcecode, if this was not intentional!')
-                    global_vars.bFoundError = True
+                    gv.flag_found_error = True
                 # remove end marker
                 # for first table
-                leToMerge[0].xpath('./tr[last()]/td[last()]')[0].text = leToMerge[0].xpath('./tr[last()]/td[last()]')[
+                list_to_merge[0].xpath('./tr[last()]/td[last()]')[0].text = list_to_merge[0].xpath('./tr[last()]/td[last()]')[
                     0].text.replace('§§', '')
-                for i in range(1, len(leToMerge)):
+                for i in range(1, len(list_to_merge)):
                     # remove start markers
-                    if leToMerge[i].xpath('./tr[1]/td[1]')[0].text is not None:
-                        leToMerge[i].xpath('./tr[1]/td[1]')[0].text = leToMerge[i].xpath('./tr[1]/td[1]')[
+                    if list_to_merge[i].xpath('./tr[1]/td[1]')[0].text is not None:
+                        list_to_merge[i].xpath('./tr[1]/td[1]')[0].text = list_to_merge[i].xpath('./tr[1]/td[1]')[
                             0].text.replace('§§', '')
                     # remove end markers
                     # and every other table
-                    if leToMerge[i].xpath('./tr[last()]/td[last()]')[0].text is not None:
-                        leToMerge[i].xpath('./tr[last()]/td[last()]')[0].text = \
-                        leToMerge[i].xpath('./tr[last()]/td[last()]')[0].text.replace('§§', '')
+                    if list_to_merge[i].xpath('./tr[last()]/td[last()]')[0].text is not None:
+                        list_to_merge[i].xpath('./tr[last()]/td[last()]')[0].text = \
+                            list_to_merge[i].xpath('./tr[last()]/td[last()]')[0].text.replace('§§', '')
                     # append all rows from all tables to first table
-                    for row in leToMerge[i]:
-                        leToMerge[0].append(row)
+                    for row in list_to_merge[i]:
+                        list_to_merge[0].append(row)
                     # remove now empty table
-                    leToMerge[i].getparent().remove(leToMerge[i])
+                    list_to_merge[i].getparent().remove(list_to_merge[i])
             else:
-                add_to_errorlog(
+                add_to_error_log(
                     'You try to merge tables with different amount of table columns. Fix this in ABBYY or CoCo! Tables will not be merged!')
-                add_to_errorlog('Table end marker: ' + str(leToMerge[0].xpath('./tr[last()]/td[last()]/text()')))
-                add_to_errorlog('The number of columns within the subtables are: ' + str(iColNumbers))
-                global_vars.bFoundError = True
-            leToMerge = []
+                add_to_error_log('Table end marker: ' + str(list_to_merge[0].xpath('./tr[last()]/td[last()]/text()')))
+                add_to_error_log('The number of columns within the subtables are: ' + str(i_col_numbers))
+                gv.flag_found_error = True
+            list_to_merge = []
 
 
 def sup_elements(entry, path):
     with open(path, 'r', encoding='UTF-8') as fi, open('temp.htm', 'w', encoding='UTF-8') as fo:
-        rawText = fi.read()
+        raw_text = fi.read()
         fi.close()
         os.remove(path)
-        lUserSupElements = entry.get().replace(' ', '').split(',')
-        for sup in lUserSupElements:
+        list_user_input = entry.get().replace(' ', '').split(',')
+        for sup in list_user_input:
             regexSupMatch = re.compile('(?<!<sup>)' + sup + '(?!</sup>)')
-            rawText = regexSupMatch.sub('<sup>' + sup + '</sup>', rawText)
-        fo.write(rawText)
+            raw_text = regexSupMatch.sub('<sup>' + sup + '</sup>', raw_text)
+        fo.write(raw_text)
         fo.close()
         os.rename('temp.htm', path)
     # leTextNotHeader = tree.xpath('.//*[normalize-space(text()) and not(self::h1] and not(self::h2) and not(self::h3)')
 
 
+class SpanFont:
+    def __init__(self, name):
+        self.name = name
+        self.font_sizes = {}
+        self.font_occurrences = {}
+
+    def add_font(self, identifier, size):
+        self.font_sizes[identifier] = size
+        self.font_occurrences[identifier] = 0
+
+    def add_occurrence(self, identifier, occurrence=1):
+        self.font_occurrences[identifier] += occurrence
+
+    def get_max_key(self):
+        return max(self.font_occurrences, key=self.font_occurrences.get)
+
+
+def analyze_style_tag(style_element, p_elements, accuracy=10):
+    # get list of raw style font text
+    print(style_element[0].text.splitlines())
+    list_styles = [element for element in style_element[0].text.splitlines() if element.startswith(' .font')]
+    print(list_styles)
+    # extract font sizes as integer list
+    list_font_sizes = [int(re.findall(r'(?<=font:)\d+(?=pt)', size)[0]) for size in list_styles]
+    # extract font name as string list
+    list_font_names = [re.findall(r'(?<=pt )[\w\s]*?(?=,)', style)[0] for style in list_styles]
+    # create list of font identifiers ('font0, font1, ...)
+    list_font_identifiers = ['font' + str(i) for i in range(len(list_styles))]
+    # create dict from identifiers and sizes
+    font_sizes = dict(zip(list_font_identifiers, list_font_sizes))
+    # create dict from identifiers and names
+    font_names = dict(zip(list_font_identifiers, list_font_names))
+
+    # create dict for occurrence count
+    font_occurrences = dict(zip(list_font_identifiers, [0] * len(list_styles)))
+    print(font_occurrences)
+    # count all the occurrences of the specific fonts
+    for p in p_elements:
+        font_occurrences[re.findall(r'font\d+', p.find('span').attrib['class'])[0]] += 1
+    # get percentages of occurrences
+    sum_occurrences = sum(font_occurrences.values())
+    font_occurrence_percentage = dict(zip(list_font_identifiers, [k / sum_occurrences for k in font_occurrences.values()]))
+    print(font_occurrence_percentage)
+    # pop zero element candidates from all lists
+    poplist = []
+    for key, value in font_occurrences.items():
+        if value == 0:
+            poplist.append(key)
+    for key in poplist:
+        font_occurrences.pop(key)
+        font_sizes.pop(key)
+        font_occurrence_percentage.pop(key)
+
+    # mark all possible heading candidates
+    max_key = max(font_occurrence_percentage, key=font_occurrence_percentage.get)
+    print(max_key)
+    max_value = font_occurrence_percentage[max_key]
+    max_size = font_sizes[max_key]
+    heading_candidates = {}
+    for key, value in font_occurrence_percentage.items():
+        if max_value > value + (accuracy / 100) and font_sizes[key] >= max_size + accuracy / 5:
+            if font_names[key] == font_names[max_key]:
+                heading_candidates[key] = 1
+            elif font_sizes[key] > max_size + accuracy / 4:
+                heading_candidates[key] = 1
+
+    print(heading_candidates)
+    return heading_candidates
+
+
 def set_span_headers():
+    for p in gv.tree.xpath('/html/body/p[count(*)>1]/span[@style or @class]/parent::*'):
+        span = p.findall('span')
+        class_attrib = int(re.findall(r'(?<=font)\d+', span[0].attrib['class'])[0])
+        for s in span[1:]:
+            if hasattr(s, 'class'):
+                fontsize = int(re.findall(r'(?<=font)\d+', s.attrib['class'])[0])
+                if fontsize > class_attrib:
+                    class_attrib = fontsize
+            span[0].append(s)
+            s.drop_tag()
+        span[0].attrib['class'] = 'font' + str(class_attrib)
+
     # select all span tags that are the only thing present in a p tag (heading candidates)
-    for p in global_vars.tree.xpath('/html/body//p[count(*)=1]/span[@style]/parent::*'):
-        # check if tag contains more than just the span tag
-        # if so skip it
-        if p.text is None and (p.tail is None or re.fullmatch('\n*?', p.tail)):
-            # check if tag contains more than one span tag
-            # if so skip it
-            try:
-                if p[0].attrib['style'] == 'font-weight:bold;' or p[0].attrib['style'] == 'font-style:italic;':
-                    if not p.xpath('./span[normalize-space(.)]')[0].text.endswith('.'):
-                        p[0].drop_tag()
-                        p.tag = 'h3'
-            except KeyError:
-                pass
+    for p in gv.tree.xpath('/html/body/p[count(*)=1]/span[@style]/parent::*'):
+        try:
+            if p[0].attrib['style'] in ['font-weight:bold;', 'font-style:italic;', 'text-decoration:underline;']:
+                if not p.xpath('./span[normalize-space(.)]')[0].text.endswith(('.', ':')):
+                    p.tag = 'h3'
+        except KeyError:
+            pass
+
+    style_content = gv.tree.xpath('/html/head/style')
+    el_spans = gv.tree.xpath('body/p[count(*)=1 and not(text())]/span[@class]/parent::*')
+
+    heading_candidates = analyze_style_tag(style_content, el_spans, 10)
+
+    for p in el_spans:
+        if re.findall(r'font\d+', p[0].attrib['class'])[0] in heading_candidates \
+                and not p[0].text.endswith(('.', ':')) \
+                and not regUnorderedList[0].match(p[0].text) \
+                and not regUnorderedList[0].match(p.getnext().text_content()):
+            p.tag = 'h3'
+    for br in gv.tree.xpath('//br[@*]'):
+        br.drop_tag()
 
     # get style tag content at the start of the document
-    stylecontent = global_vars.tree.xpath('/html/head/style')
-    print(stylecontent)
+
     # convert it to list with only font classes
-    styleList = [element for element in stylecontent[0].text.splitlines() if element.startswith(' .font')]
-    # extract the font class indices
-    fontList = [int(re.findall('(?<=font:)\d+(?=pt)', size)[0]) for size in styleList]
-    # cut list when value of font size is no longer increasing (indicates font style change)
-    sortedList = [fontList[0]]
-    for i in range(1, len(fontList)):
-        if fontList[i] >= fontList[i-1]:
-            sortedList.append(fontList[i])
-        else:
-            break
-    # get all p elements with span child with 'class' attribute that are children of p and are an only child and dont contain text
-    allspan = global_vars.tree.xpath('body/p[count(*)=1 and not(text())]/span[@class]/parent::*')
-    occList = [0] * len(sortedList)
-    # create occurence list, to determine which font size is associated with normal text
-    for p in allspan:
-        try:
-            # increase index of font class in occList by one for each span element
-            occList[int(re.findall('(?<=font)\d+', p.find('span').attrib['class'])[0])] += 1
-        except IndexError:
-            pass
-    indexOfMax = occList.index(max(occList))
-    print(indexOfMax)
-    for p in allspan:
-        if int(re.findall('(?<=font)\d+', p[0].attrib['class'])[0]) > indexOfMax \
-                and not p[0].text.endswith('.'):
-            p.tag = 'h3'
-
-    # onlyh = global_vars.tree.xpath('body//*[self::h3 or self::h2 or self::h1]//span[@class]/parent::*')
-    # headerList = [[0, 0, 0] for _ in range(len(sortedList))]
-    # for hspan in onlyh:
-    #     for i in hspan.iterfind('span'):
-    #         try:
-    #             headerList[int(re.findall('(?<=font)\d+', i.attrib['class'])[0])][int(hspan.tag[1])-1] += 1
-    #         except IndexError:
-    #             pass
+    # list_styles = [element for element in style_content[0].text.splitlines() if element.startswith(' .font')]
+    # # extract the font class indices
+    # list_font_sizes = [int(re.findall(r'(?<=font:)\d+(?=pt)', size)[0]) for size in list_styles]
+    # font_sizes = dict(zip(['font' + str(i) for i in range(len(list_styles))], list_font_sizes))
+    # # get all p elements with span child with 'class' attribute that are children of p and are an only child and dont contain text
     #
-    # allh = global_vars.tree.xpath('body/*[(self::h3 or self::h2 or self::h1) and count(*)=1]//span[@class]')
-    # hList = [0] * len(sortedList)
-    # cList = [0] * len(sortedList)
-    # for h in allh:
-    #     try:
-    #         cList[int(re.findall('(?<=font)\d+', h.attrib['class'])[0])] += 1
-    #         try:
-    #             if h.attrib['style'] == 'font-weight:bold;': continue
-    #         except KeyError:
-    #             hList[int(re.findall('(?<=font)\d+', h.attrib['class'])[0])] += 1
-    #     except IndexError:
-    #         pass
-    print('FONTSIZE IN ALL Ps')
-    print(occList)
-    # print()
-    # print('FONTSIZE IN ALL HEADINGS AND Ps THAT not END WITH . AND ARE NOT BOLD')
-    # print(dotList)
-    # print()
-    # print('FONTSIZE IN ALL HEADINGS')
-    # print(cList)
-    # print()
-    # print('FONTSIZE IN ALL HEADINGS THAT ARE NOT BOLD')
-    # print(hList)
-    # for tag in global_vars.tree.xpath('//*[@class]'):
-    #     # For each element with a class attribute, remove that class attribute
-    #     tag.attrib.pop('class')
-
-    for br in global_vars.tree.xpath('//br[@*]'):
-        br.drop_tag()
+    # # create dict with font names and 0 values
+    # font_occurrences = dict(zip(['font' + str(i) for i in range(len(list_styles))], [0] * len(list_styles)))
+    # # fill occurrence dict, to determine which font size is associated with normal text
+    # for p in el_spans:
+    #     # increase index of font class in occList by one for each span element
+    #     font_occurrences[re.findall(r'font\d+', p.find('span').attrib['class'])[0]] += 1
+    # # get the key of the maximum number of occurring font text
+    # max_key_font = max(font_occurrences, key=font_occurrences.get)
+    # # get the percentage of occurrence of each font style
+    # sum_occurrences = sum(font_occurrences.values())
+    # percentage_occurrence = dict(zip(font_occurrences.keys(), [k / sum_occurrences for k in font_occurrences.values()]))
+    # for key, value in percentage_occurrence.items():
+    #     if value == 0:
+    #         font_occurrences.pop(key)
+    # print(f'Percentages: {percentage_occurrence}')
+    #
+    # list_fonts_size = []
+    # for style in list_styles:
+    #     font_name = re.findall(r'(?<=pt )[\w\s]*?(?=,)', style)[0]
+    #     font_size = int(re.findall(r'(?<=font:)\d+(?=pt)', style)[0])
+    #     if not list_fonts_size:
+    #         list_fonts_size.append([font_size, font_name])
+    #     elif font_name != list_fonts_size[-1][-1] and font_size != list_fonts_size[-1][-2]:
+    #         list_fonts_size.append([font_size, font_name])
+    #     elif font_name == list_fonts_size[-1][-1] and font_size != list_fonts_size[-1][-2]:
+    #         list_fonts_size[-1].insert(-1, font_size)
+    #
+    # # print(f'List font size: {list_fonts_size}')
+    # main_font = max(list_fonts_size, key=len)[-1]
+    # index_main_font = max((len(l), i) for i, l in enumerate(list_fonts_size))[1]
+    # # print(main_font)
+    # # print(index_main_font)
+    # #
+    # # print(f'Font list: {list_font_sizes}')
+    # list_font_sizes = [int(re.findall(r'(?<=font:)\d+(?=pt)', size)[0]) for size in list_styles]
+    # # cut list when value of font size is no longer increasing (indicates font style change)
+    # list_filtered_fonts = [list_font_sizes[0]]
+    # for i in range(1, len(list_font_sizes)):
+    #     if list_font_sizes[i] >= list_font_sizes[i-1]:
+    #         list_filtered_fonts.append(list_font_sizes[i])
+    #     else:
+    #         break
+    #
+    # # print(f'List of fontsizes: {list_occurrences}')
+    # print(f'Index of max: {max_key_font}')
 
 
 
 def rename_pictures():
-    picFolder = os.path.splitext(global_vars.tk.filename)[0] + '_files'
-    if os.path.exists(picFolder):
-        for filename in os.listdir(picFolder):
+    folder_pics = os.path.splitext(gv.tk.filename)[0] + '_files'
+    if os.path.exists(folder_pics):
+        for filename in os.listdir(folder_pics):
             base_file, ext = os.path.splitext(filename)
             if ext == ".png":
                 # rename reference in htm file
                 # get 'img' tag
-                ePngPic = global_vars.tree.xpath('//img[@src="' + os.path.basename(picFolder) + '/' + filename + '"]')
+                e_png_pic = gv.tree.xpath('//img[@src="' + os.path.basename(folder_pics) + '/' + filename + '"]')
                 # rename attribute "src"
-                ePngPic[0].attrib['src'] = os.path.basename(picFolder) + '/' + base_file + '.jpg'
+                e_png_pic[0].attrib['src'] = os.path.basename(folder_pics) + '/' + base_file + '.jpg'
                 # rename picture file
-                os.rename(picFolder + '/' + filename, picFolder + '/' + base_file + ".jpg")
+                os.rename(folder_pics + '/' + filename, folder_pics + '/' + base_file + ".jpg")
+
 
 # this function fixed falsly formatted numbers within tables which should be thousand-separated by a space and decimal
 # separated by a chooseable separator "decSeparator"
 # the precision of decimal places is adopted from each original number
-def fix_tsd_separators(decSeparator):
+def fix_tsd_separators(dec_separator):
     # exclude header and leftmost column from reformatting
-    for table in global_vars.tree.xpath('//table[not(@class="footnote")]'):
-        leNumCells = table.xpath('.//tbody/tr/td[position() > 1]')
-        for cell in leNumCells:
+    for table in gv.tree.xpath('//table[not(@class="footnote")]'):
+        for cell in table.xpath('.//tbody/tr/td[position() > 1]'):
             if cell.text is not None:
                 # only affect cells with numbers
                 if re.fullmatch('-?\s?[\d\s,]+', cell.text):
                     # clean all whitespace from number
-                    noSpace = cell.text.replace(' ', '')
+                    no_space = cell.text.replace(' ', '')
                     # find nr of decimal places
-                    decPlaces = noSpace[::-1].find(decSeparator)
+                    nr_dec_places = no_space[::-1].find(dec_separator)
                     # if none are found = -1 so fix that to 0
-                    if decPlaces < 0 : decPlaces = 0
+                    if nr_dec_places < 0 : nr_dec_places = 0
                     # reformat string to match float format
                     # reformat float to insert thousand separators and preserve the nr of decimal places
                     # replace tsd separators to chosen separator
-                    cell.text = '{:,.{prec}f}'.format(float(noSpace.replace(',', '.')), prec=decPlaces).replace(',', ' ').replace('.', decSeparator)
+                    cell.text = '{:,.{prec}f}'.format(float(no_space.replace(',', '.')), prec=nr_dec_places).replace(',', ' ').replace('.', dec_separator)
+
 
 # this function inserts br-tags in the header and first column of the big "Vermögensaufstellung" Table in fonds reports
 # it hereby wraps the cell text to a specific length, which is set to 14 characters while not breaking longer words
 def break_fonds_table():
-    eFondsTable = global_vars.tree.xpath(
+    e_fonds_table = gv.tree.xpath(
         '/html/body/*[starts-with(normalize-space(text()),"Vermögensaufstellung")]/following-sibling::table[1]')
-    for table in eFondsTable:
-        leTitleCells = table.xpath('.//td[position() = 1]')
-        leHeaderCells = table.xpath('.//tr[position() <= 2]/td')
-        brTags = table.xpath('.//td//br')
-        for br in brTags:
+    for table in e_fonds_table:
+        title_col_cells = table.xpath('.//td[position() = 1]')
+        header_cells = table.xpath('.//tr[position() <= 2]/td')
+        # remove br-tags in this table
+        br_tags = table.xpath('.//td//br')
+        for br in br_tags:
+            # insert space before tail text
             br.tail = ' ' + br.tail
             br.drop_tag()
-        for cell in leTitleCells:
+        # iterate leftmost column
+        for cell in title_col_cells:
             if cell.text:
-                lsWrap = text_wrap(cell.text, width=14, break_long_words=False)
-                cell.text = lsWrap[0]
-                # if len(cell):
-                #     print(cell[i].tag)
-                for tail in reversed(lsWrap[1:]):
-                    brTag = etree.Element('br')
-                    brTag.tail = tail
-                    cell.insert(0, brTag)
-        for cell in leHeaderCells:
+                # wrap text into sizeable chunks of max 14 chars
+                list_wrap = text_wrap(cell.text, width=14, break_long_words=False)
+                # set first chunk to cell text
+                cell.text = list_wrap[0]
+                # append rest as br-tail
+                for tail in reversed(list_wrap[1:]):
+                    br_tag = etree.Element('br')
+                    br_tag.tail = tail
+                    cell.insert(0, br_tag)
+        for cell in header_cells:
             if cell.text:
-                lsWrap = text_wrap(cell.text, width=3, break_long_words=False)
-                cell.text = lsWrap[0]
-                for tail in lsWrap[1:]:
-                    brTag = etree.Element('br')
-                    brTag.tail = tail
-                    cell.append(brTag)
+                list_wrap = text_wrap(cell.text, width=3, break_long_words=False)
+                cell.text = list_wrap[0]
+                for tail in list_wrap[1:]:
+                    br_tag = etree.Element('br')
+                    br_tag.tail = tail
+                    cell.append(br_tag)
 
 
 def big_fucking_table():
-    secTables = global_vars.tree.xpath('//table[count(tr[1]/td) = 5]')
-    for table in secTables:
-        for row in table:
-            brContent = []
-            for cell in row:
-                if len(cell):
-                    if cell[0].tag == 'br':
-                        brContent.append(cell[0].tail)
-                        cell.remove(cell[0])
-                else:
-                    brContent.append(' ')
+    secTables = gv.tree.xpath('//table[count(tr[6]/td) = 33]')
+    for row in secTables[0][2:]:
+        brContent = []
+        for cell in row[-5:]:
+            if len(cell) == 1:
+                if cell[0].tag == 'br':
+                    brContent.append(cell[0].tail)
+                    cell.remove(cell[0])
+            else:
+                brContent.append(' ')
 
-            if all(elem == ' ' for elem in brContent):
-                continue
-            if len(brContent) == 5:
-                newTr = etree.Element('tr')
-                for txt in brContent:
-                    newTd = etree.Element('td')
-                    newTd.text = txt
-                    newTr.append(newTd)
-                row.addnext(newTr)
+        if all(elem == ' ' for elem in brContent):
+            continue
+        if len(brContent) == 5:
+            newTr = etree.Element('tr')
+            for i in range(28):
+                newTr.append(etree.Element('td'))
+            for txt in brContent:
+                newTd = etree.Element('td')
+                newTd.text = txt
+                newTr.append(newTd)
+            row.addnext(newTr)
+
 
 # wrap table cells in p tags
 def wrap(root, tag):
@@ -732,74 +864,71 @@ def wrap(root, tag):
         # Set the new <p> element as the cell's child
         cell.append(e)
 
+
+def clean_whitespace(element):
+    # remove all repeating and trailing whitespace
+    for e in element.iter():
+        if e.text:
+            e.text = re.sub(r'( |&nbsp;|\t){2,}', ' ', e.text)
+            # e.text = e.text.strip()
+        if e.tail:
+            e.tail = re.sub(r'\s{2,}', ' ', e.tail)
+            # e.tail = e.tail.strip()
+
+
 # first cleaning of the ABBYY htm before the parsing process really starts
 def pre_cleanup():
     #################
     #  PREPARATIONS #
     #################
     # replace </p><p> in tables with <br>
-    # takes the longest, might find better alternative
-    for td in global_vars.tree.xpath('//td[count(p)>1]'):
+    for td in gv.tree.xpath('//td[count(p)>1]'):
         for p in td.findall('p')[:-1]:
             p.append(etree.Element('br'))
 
-    # change all header hierarchies higher than 3 to 3
-    for e in global_vars.tree.xpath('//*[self::h4 or self::h5 or self::h6]'):
-        e.tag = 'h3'
-
-    # remove sup/sub tags from headlines
-    for e in global_vars.tree.xpath('//*[self::h1 or self::h2 or self::h3]/*[self::sup or self::sub]'):
-        e.drop_tag()
+    clean_whitespace(gv.tree)
 
     # remove p tags in tables
-    for p in global_vars.tree.xpath('//table//p | //table//span'):
+    for p in gv.tree.xpath('//table//p | //table//span'):
         # print(p.text)
         p.drop_tag()
 
+    # change all header hierarchies higher than 3 to 3
+    for e in gv.tree.xpath('//*[self::h4 or self::h5 or self::h6]'):
+        e.tag = 'h3'
+
+    # remove sup/sub tags from headlines
+    for e in gv.tree.xpath('//*[self::h1 or self::h2 or self::h3]/*[self::sup or self::sub]'):
+        e.drop_tag()
+
     # check if report is a fonds report
-    if global_vars.tree.xpath('/html/body/*[starts-with(normalize-space(text()),"Vermögensaufstellung")]'):
-        global_vars.fIsFondsReport.set(value=1)
+    if gv.tree.xpath('/html/body/*[starts-with(normalize-space(text()),"Vermögensaufstellung")]'):
+        gv.b_fonds_report.set(value=1)
         # remove all multiple occurences of dots and ' )'
         # hacky and not that versatile as of now
-        for e in global_vars.tree.xpath('.//table//*[text()[not(normalize-space()="")]]'):
-            e.text = re.sub('\s*?\.{2,}', '', e.text)
-            e.text = re.sub(' \)', ')', e.text)
-            e.text = re.sub('\)\s*?\.', ')', e.text)
-            if len(e):
-                for i in e:
-                    if i.tail:
-                        i.tail = re.sub('\s*?\.{2,}', '', i.tail)
-                        i.tail = re.sub(' \)', ')', i.tail)
-                        i.tail = re.sub('\)\s*?\.', ')', i.tail)
+        for e in gv.tree.xpath('.//table//*[text()[not(normalize-space()="")]]'):
+            if e.text:
+                e.text = re.sub('\s*?\.{2,}', '', e.text)
+                e.text = re.sub(' \)', ')', e.text)
+                e.text = re.sub('\)\s*?\.', ')', e.text)
+                if len(e):
+                    for i in e:
+                        if i.tail:
+                            i.tail = re.sub('\s*?\.{2,}', '', i.tail)
+                            i.tail = re.sub(' \)', ')', i.tail)
+                            i.tail = re.sub('\)\s*?\.', ')', i.tail)
 
-    # strip all unnecessary white space
-    # nlist = global_vars.tree.xpath('normalize-space(//td)')
-    # print(nlist)
-    for td in global_vars.tree.xpath('//table//td'):
-        if td.text is not None:
-            td.text = td.text.strip()
-        if td.tail is not None:
-            td.tail = td.tail.strip()
+
 
     # remove li tags in td elements
-    for li in global_vars.tree.xpath('//td/li'):
+    for li in gv.tree.xpath('//td/li'):
         li.drop_tag()
-
-    # remove sup/sub tags in unordered list candidates and for non footnote candidates
-    for sup in global_vars.tree.xpath('//*[self:: sup or self::sub]'):
-        if sup.text is None:
-            sup.drop_tag()
-        elif any(list(reg.fullmatch(sup.text) for reg in regUnorderedList)):
-            sup.drop_tag()
-        elif not any(list(reg.fullmatch(sup.text) for reg in regFootnote)) \
-                and not any(re.fullmatch(e, sup.text) for e in lSupElements):
-            sup.drop_tag()
 
     # check if .htm-file is formatted and proceed accordingly
     # execute only if a formatted html file is used (ABBYY export formatted file)
-    if global_vars.tree.xpath('//span'):
-        global_vars.bIsFormatted = True
-        global_vars.bSpanHeaders.set(value=1)
+    if gv.tree.xpath('//span'):
+        gv.flag_is_formatted = True
+        gv.b_span_headings.set(value=1)
         cleaner = Cleaner(
             remove_tags=['a', 'div'],
             style=False,
@@ -809,7 +938,7 @@ def pre_cleanup():
             inline_style=False,
             safe_attrs_only=False
         )
-        global_vars.tree = cleaner.clean_html(global_vars.tree)
+        gv.tree = cleaner.clean_html(gv.tree)
         print('Found formatted File')
     else:
         cleaner = Cleaner(
@@ -820,32 +949,58 @@ def pre_cleanup():
             page_structure=False,
             inline_style=True
         )
-        global_vars.tree = cleaner.clean_html(global_vars.tree)
+        gv.tree = cleaner.clean_html(gv.tree)
 
-    return global_vars.tree
+    # remove sup/sub tags in unordered list candidates and for non footnote candidates
+    for sup in gv.tree.xpath('//*[self:: sup or self::sub]'):
+        if sup.text is None:
+            sup.drop_tag()
+        elif any(list(reg.fullmatch(sup.text) for reg in regUnorderedList)):
+            sup.drop_tag()
+        elif not any(list(reg.fullmatch(sup.text) for reg in regFootnote)) \
+                and not any(re.fullmatch(e, sup.text) for e in lSupElements):
+            sup.drop_tag()
+
+    return gv.tree
 
 
 # cleanup after generating
-def post_cleanup(entryCkb):
+def post_cleanup(user_input):
     # wrap all table contents in p-tags
     # wrap(tree, "p")
+
+    # clean brbr tags
+    for h in gv.tree.xpath('//*[self::h1 or self::h2 or self::h3]/br/parent::*'):
+        print(h)
+        br = h.findall('br')
+        if len(br):
+            for i in range(len(br)):
+                if not br[i].tail and br[i+1].tail:
+                    sibling = etree.Element(h.tag)
+                    sibling.insert(0, br[i+1])
+                    h.addnext(sibling)
+                    br[i].drop_tag()
+                    br[i+1].drop_tag()
+                    i += 1
+
     # write to new file in source folder
-    global_vars.tree.write(os.path.splitext(global_vars.tk.filename)[0] + '_modified.htm', encoding='UTF-8', method='html')
-    if global_vars.bSupElements.get():
-        sup_elements(entryCkb, os.path.splitext(global_vars.tk.filename)[0] + '_modified.htm')
+    print(os.path.splitext(gv.tk.filename)[0])
+    gv.tree.write(os.path.splitext(gv.tk.filename)[0] + '_modified.htm', encoding='UTF-8', method='html')
+    if gv.b_sup_elements.get():
+        sup_elements(user_input, os.path.splitext(gv.tk.filename)[0] + '_modified.htm')
 
     # clean up user_words.txt
-    f = open(global_vars.working_folder + '/user_words.txt', 'r', encoding='utf-8')
+    f = open(gv.path_root_UI + '/user_words.txt', 'r', encoding='utf-8')
     l = f.read().splitlines()
     f.close()
-    f = open(global_vars.working_folder + '/user_words.txt', 'w', encoding='utf-8')
+    f = open(gv.path_root_UI + '/user_words.txt', 'w', encoding='utf-8')
 
     f.write('\n'.join(list(dict.fromkeys(l))) + '\n')
     f.close()
 
 
 def span_cleanup():
-    if global_vars.bIsFormatted:
+    if gv.flag_is_formatted:
         cleaner = Cleaner(
             remove_tags=['span', 'head'],
             style=True,
@@ -854,23 +1009,25 @@ def span_cleanup():
             page_structure=False,
             inline_style=True
         )
-        global_vars.tree = cleaner.clean_html(global_vars.tree)
+        gv.tree = cleaner.clean_html(gv.tree)
 
 ####################
 # HELPER FUNCTIONS #
 ####################
 
+
 # returns TRUE if input string can be interpreted as a date
 # if fuzzy is true, ignore unknown tokens in string
-def is_date(sInput, bFuzzy):
+def is_date(date_input, flag_fuzzy):
     try:
-        parser.parse(sInput, fuzzy=bFuzzy, parserinfo=GermanParserInfo())
+        parser.parse(date_input, fuzzy=flag_fuzzy, parserinfo=GermanParserInfo())
         return [True, False]
     except ValueError:
         try:
-            sInput = re.sub('\s', '', sInput)
-            parser.parse(sInput, fuzzy=bFuzzy, parserinfo=GermanParserInfo())
+            date_input = re.sub('\s', '', date_input)
+            parser.parse(date_input, fuzzy=flag_fuzzy, parserinfo=GermanParserInfo())
             return [True, True]
+        # todo: clear up exceptions
         except:
             return [False]
     except:
@@ -881,32 +1038,33 @@ def is_date(sInput, bFuzzy):
 def get_max_columns(table):
     # get max number of columns in a row
     firstRow = table.xpath('./tr[1]/td')
-    nrCols = 0
+    nr_cols = 0
     # if there is a colspan in the row, increase by colspan value
     for td in firstRow:
         if td.get('colspan') is not None:
-            nrCols += int(td.get('colspan'))
+            nr_cols += int(td.get('colspan'))
         else:
-            nrCols += 1
-    return nrCols
+            nr_cols += 1
+    return nr_cols
 
 
 # save repl_dict to report folder with name
 def save_replacements(repl_dict, name):
-    if os.path.exists(global_vars.report_path + name):
-        save_file = open(global_vars.report_path + name, 'rb')
+    if os.path.exists(gv.path_report + name):
+        save_file = open(gv.path_report + name, 'rb')
         old_dict = pickle.load(save_file)
         repl_dict = {**old_dict, **repl_dict}
         save_file.close()
-    save_file = open(global_vars.report_path + name, 'wb')
+    save_file = open(gv.path_report + name, 'wb')
     pickle.dump(repl_dict, save_file)
     save_file.close()
 
 
-def add_to_errorlog(text):
-    global_vars.lsErrorLog.append(text)
+def add_to_error_log(text):
+    gv.list_error_log.append(text)
 
-# this is a generator to split a list in sublists with chunks of consecutive data from the inserted list
+
+# this is to split a list in sublists with chunks of consecutive data from the inserted list
 def split_non_consecutive(data):
     consec_list = []
     inner_list = []
